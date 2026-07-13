@@ -147,10 +147,10 @@ tr:hover td{background:#FAFCFF}
 // ============================================================
 // ↓ PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE ↓
 // ============================================================
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyjnOREWt0_J4otiwr8uv6MTkRmp7lgFtIpAsm_gFdiJJnA3od0RuzQNNiUEiwI9JnJ/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxCOYIRHSOlyJRpocdY4A6ao7z4U1lm67SIGyT2IsJdBspwdZpxEFO_DNO73Xb_C6s6fw/exec';
 // ============================================================
 
-const IS_CONFIGURED = SCRIPT_URL !== '';
+const IS_CONFIGURED = SCRIPT_URL !== 'YOUR_APPS_SCRIPT_WEB_APP_URL';
 
 // ── Seed data ──
 const SEED = {
@@ -422,7 +422,6 @@ function renderApply(){
   const isAp=CU.role==='approver';
   const allActive=DB.resources.filter(r=>r.status==='Active');
   const updatedLeaves=!isAp?DB.leaves.filter(l=>l.empId===CU.id&&l.notified):[];
-  const myLeaves=DB.leaves.filter(l=>l.empId===CU.id);
   return`
   ${setupBanner()}${syncBar()}
   ${updatedLeaves.length>0?`<div class="notify-banner info"><i class="ti ti-bell"></i><strong>${updatedLeaves.length} leave request(s)</strong> updated by approver.<button class="btn sm" style="margin-left:auto" onclick="clearNotifs()">Dismiss</button></div>`:''}
@@ -450,10 +449,6 @@ function renderApply(){
       <div class="fg"><label>Reason (optional)</label><textarea id="lv-reason" rows="1" placeholder="Reason for leave"></textarea></div>
     </div>
     <button class="btn teal" onclick="submitLeave()"><i class="ti ti-send"></i> Submit Request</button>
-  </div>
-  <div class="card">
-    <div class="card-hdr"><div class="card-ttl"><i class="ti ti-history"></i>My leave history</div><span style="font-size:11px;color:var(--text-light)">${myLeaves.length} record(s)</span></div>
-    ${renderLeaveTableFull(myLeaves,{showEmployee:false,showDelete:true,myEmpId:CU.id})}
   </div>`;
 }
 
@@ -512,7 +507,9 @@ function submitLeave(){
   const reason=document.getElementById('lv-reason')?.value||'';
   if(!empId||!type||!from||!to){toast('Fill all required fields',false);return}
   if(new Date(to)<new Date(from)){toast('To Date must be after From Date',false);return}
-  DB.leaves.push({id:uid(),empId,type,from,to,days:calcDays(from,to),backup,reason,approver:'',status:'Pending',notified:false,createdAt:new Date().toISOString()});
+  const empRes=DB.resources.find(r=>r.id===empId)||{};
+  const backupRes=backup?DB.resources.find(r=>r.id===backup):null;
+  DB.leaves.push({id:uid(),empId,empName:empRes.name||'',empTeam:empRes.team||'',type,from,to,days:calcDays(from,to),backup,backupName:backupRes?backupRes.name:'',reason,approver:'',status:'Pending',notified:false,createdAt:new Date().toISOString()});
   saveAndRender().then(()=>toast('Leave request submitted'));
 }
 function deleteLeave(id){
@@ -538,11 +535,11 @@ function renderPending(){
     ?`<div class="card"><div class="empty"><i class="ti ti-checks"></i>All caught up — no pending requests.</div></div>`
     :`<div class="tw" style="margin-bottom:12px"><table>
       <tr><th>Employee</th><th>Team</th><th>Type</th><th>From</th><th>To</th><th>Days</th><th>Backup</th><th>Approver *</th><th>Reason</th><th>Action</th></tr>
-      ${pending.map(l=>{const r=DB.resources.find(x=>x.id===l.empId)||{};return`<tr>
-        <td><div style="display:flex;align-items:center;gap:6px"><div style="width:24px;height:24px;border-radius:50%;background:${ac(r.name||'?')};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:500;color:#fff">${ini(r.name||'?')}</div><span style="font-weight:500;color:var(--navy)">${r.name||'—'}</span></div></td>
-        <td>${tn(r.team)}</td><td><span class="pill" style="background:var(--violet-bg);color:var(--violet)">${l.type}</span></td>
+      ${pending.map(l=>{const r=DB.resources.find(x=>x.id===l.empId)||{};const empName=r.name||l.empName||l.empId||'—';const empTeam=r.team||l.empTeam||'';const backupRes=l.backup?DB.resources.find(x=>x.id===l.backup):null;const backupName=backupRes?backupRes.name:(l.backupName||'—');return`<tr>
+        <td><div style="display:flex;align-items:center;gap:6px"><div style="width:24px;height:24px;border-radius:50%;background:${ac(empName)};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:500;color:#fff">${ini(empName)}</div><span style="font-weight:500;color:var(--navy)">${empName}</span></div></td>
+        <td>${tn(empTeam)||'—'}</td><td><span class="pill" style="background:var(--violet-bg);color:var(--violet)">${l.type}</span></td>
         <td>${l.from}</td><td>${l.to}</td><td style="text-align:center;font-weight:500">${l.days}</td>
-        <td style="font-size:11px">${l.backup?rn(l.backup):'—'}</td>
+        <td style="font-size:11px">${backupName}</td>
         <td><select id="app-sel-${l.id}" style="font-size:11px;padding:4px 6px;border:0.5px solid ${l.approver?'var(--border)':'var(--rose)'};border-radius:var(--radius);background:var(--surface);color:var(--text);min-width:120px" onchange="saveApproverSelection('${l.id}',this.value)">
           <option value="">— select —</option>${approvers.map(a=>`<option value="${a.id}" ${l.approver===a.id?'selected':''}>${rn(a.resourceId)}</option>`).join('')}
         </select>${!l.approver?`<div style="font-size:10px;color:var(--rose);margin-top:2px">Required</div>`:''}</td>
@@ -580,7 +577,7 @@ function updLeave(id,status){
 
 /* ── Settings ── */
 function renderSettings(){
-  return`<div class="page-title"><i class="ti ti-settings" style="color:var(--teal)"></i>Settings</div>
+  return`${syncBar()}<div class="page-title"><i class="ti ti-settings" style="color:var(--teal)"></i>Settings</div>
   <div class="page-sub">Manage resources, teams, and approvers</div>
   <div class="tabs">
     <button class="tab ${STAB==='resources'?'active':''}" onclick="stab('resources')"><i class="ti ti-users"></i>Resources</button>
@@ -697,7 +694,7 @@ function confirmDelApp(id){closeModal();DB.approvers=DB.approvers.filter(a=>a.id
 /* ── Reports ── */
 function renderReports(){
   const leaves=DB.leaves,totalDays=leaves.reduce((s,l)=>s+l.days,0);
-  return`<div class="page-title"><i class="ti ti-chart-bar" style="color:var(--teal)"></i>Reports</div><div class="page-sub">Analyse leave data</div>
+  return`${syncBar()}<div class="page-title"><i class="ti ti-chart-bar" style="color:var(--teal)"></i>Reports</div><div class="page-sub">Analyse leave data</div>
   <div class="stats-row">
     <div class="sc st"><div class="sl">Total</div><div class="sv">${leaves.length}</div></div>
     <div class="sc sd"><div class="sl">Days</div><div class="sv">${totalDays}</div></div>
@@ -731,7 +728,7 @@ function renderRptBody(leaves){window._fl=leaves;if(RVIEW==='employee')return re
 function renderEmpRpt(leaves){
   if(!leaves.length)return`<div class="empty"><i class="ti ti-inbox"></i>No data.</div>`;
   return`<div class="tw"><table><tr><th>Employee</th><th>Team</th><th>Type</th><th>From</th><th>To</th><th>Days</th><th>Backup</th><th>Approver</th><th>Status</th></tr>
-  ${leaves.map(l=>{const r=DB.resources.find(x=>x.id===l.empId)||{};return`<tr><td style="font-weight:500;color:var(--navy)">${r.name||'—'}</td><td>${tn(r.team)}</td><td><span class="pill" style="background:var(--violet-bg);color:var(--violet)">${l.type}</span></td><td>${l.from}</td><td>${l.to}</td><td style="text-align:center;font-weight:500">${l.days}</td><td>${l.backup?rn(l.backup):'—'}</td><td style="font-size:11px;color:var(--text-mid)">${l.approver?appNameById(l.approver):'—'}</td><td><span class="badge ${l.status.toLowerCase()}">${l.status}</span></td></tr>`}).join('')}</table></div>`;
+  ${leaves.map(l=>{const r=DB.resources.find(x=>x.id===l.empId)||{};const eName=r.name||l.empName||'—';const eTeam=r.team||l.empTeam||'';const bRes=l.backup?DB.resources.find(x=>x.id===l.backup):null;const bName=bRes?bRes.name:(l.backupName||'—');return`<tr><td style="font-weight:500;color:var(--navy)">${eName}</td><td>${tn(eTeam)||'—'}</td><td><span class="pill" style="background:var(--violet-bg);color:var(--violet)">${l.type}</span></td><td>${l.from}</td><td>${l.to}</td><td style="text-align:center;font-weight:500">${l.days}</td><td>${l.backup?bName:'—'}</td><td style="font-size:11px;color:var(--text-mid)">${l.approver?appNameById(l.approver):'—'}</td><td><span class="badge ${l.status.toLowerCase()}">${l.status}</span></td></tr>`}).join('')}</table></div>`;
 }
 function renderTeamRpt(leaves){
   const teams=DB.teams;if(!teams.length)return`<div class="empty"><i class="ti ti-building"></i>No teams.</div>`;
