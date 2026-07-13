@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vista Leave Tracker</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --navy:#1E3A5F;--navy-light:#2A5080;
+  --teal:#0D9488;--teal-light:#14B8A6;--teal-bg:#F0FDFA;
+  --amber:#D97706;--amber-bg:#FFFBEB;
+  --rose:#E11D48;--rose-bg:#FFF1F2;
+  --violet:#7C3AED;--violet-bg:#F5F3FF;
+  --sky:#0284C7;--sky-bg:#F0F9FF;
+  --green:#16A34A;--green-bg:#F0FDF4;
+  --surface:#F8FAFC;--white:#fff;
+  --border:#E2E8F0;--border-strong:#CBD5E1;
+  --text:#1E293B;--text-mid:#475569;--text-light:#94A3B8;
+  --radius:8px;
+}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--surface);color:var(--text);min-height:100vh}
+.app{display:flex;min-height:100vh}
+.sidebar{width:210px;background:var(--navy);display:flex;flex-direction:column;flex-shrink:0;position:fixed;top:0;left:0;height:100vh;z-index:100;overflow-y:auto}
+.sidebar-header{padding:12px 14px 10px;border-bottom:1px solid rgba(255,255,255,0.08)}
+.brand-row{display:flex;align-items:center;gap:8px}
+.brand-icon{width:28px;height:28px;background:var(--teal);border-radius:7px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;flex-shrink:0}
+.brand-name{font-size:11px;font-weight:500;color:#fff;line-height:1.3}
+.brand-sub{font-size:10px;color:rgba(255,255,255,0.4);margin-top:1px}
+.user-pill{margin:8px 10px 0;padding:7px 9px;background:rgba(255,255,255,0.07);border-radius:7px;display:flex;align-items:center;gap:7px}
+.u-av{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;flex-shrink:0}
+.u-name{font-size:11px;color:#fff;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.u-role{font-size:10px;color:rgba(255,255,255,0.45)}
+.btn-sw{font-size:10px;color:rgba(255,255,255,0.4);background:none;border:none;cursor:pointer;padding:0;text-decoration:underline;white-space:nowrap}
+.btn-sw:hover{color:#fff}
+.nav-section{padding:8px 6px 0;flex:1}
+.nav-label{font-size:10px;font-weight:500;color:rgba(255,255,255,0.28);padding:0 8px;margin-bottom:3px;letter-spacing:.08em;text-transform:uppercase}
+.nav-item{display:flex;align-items:center;gap:8px;padding:7px 9px;cursor:pointer;font-size:12px;color:rgba(255,255,255,0.58);border:none;background:none;width:100%;text-align:left;border-radius:var(--radius);margin-bottom:1px}
+.nav-item:hover{background:rgba(255,255,255,0.08);color:#fff}
+.nav-item.active{background:var(--teal);color:#fff;font-weight:500}
+.nav-item.locked{opacity:.3;cursor:not-allowed;pointer-events:none}
+.badge-dot{background:var(--rose);color:#fff;font-size:10px;font-weight:500;padding:1px 5px;border-radius:20px;margin-left:auto}
+.main{flex:1;margin-left:210px;padding:20px;min-height:100vh;background:var(--surface)}
+.page-title{font-size:17px;font-weight:500;color:var(--navy);display:flex;align-items:center;gap:6px;margin-bottom:3px}
+.page-sub{font-size:12px;color:var(--text-light);margin-bottom:16px}
+.card{background:var(--white);border:0.5px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px}
+.card-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.card-ttl{font-size:13px;font-weight:500;color:var(--navy);display:flex;align-items:center;gap:5px}
+.card-ttl i{color:var(--teal);font-size:13px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.form-row.three{grid-template-columns:1fr 1fr 1fr}
+.fg{display:flex;flex-direction:column;gap:4px}
+.fg label{font-size:11px;font-weight:500;color:var(--text-mid);text-transform:uppercase;letter-spacing:.04em}
+.fg input,.fg select,.fg textarea{font-size:13px;padding:7px 10px;border:0.5px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);width:100%}
+.fg input:focus,.fg select:focus,.fg textarea:focus{outline:none;border-color:var(--teal);box-shadow:0 0 0 3px rgba(13,148,136,.1)}
+.fg input[readonly]{background:#F1F5F9;color:var(--text-mid)}
+.btn{padding:6px 13px;border-radius:var(--radius);font-size:12px;cursor:pointer;border:0.5px solid var(--border-strong);background:var(--white);color:var(--text-mid);font-weight:500;display:inline-flex;align-items:center;gap:5px;transition:all .15s}
+.btn:hover{background:var(--surface)}
+.btn.primary{background:var(--navy);color:#fff;border-color:var(--navy)}.btn.primary:hover{background:var(--navy-light)}
+.btn.teal{background:var(--teal);color:#fff;border-color:var(--teal)}.btn.teal:hover{background:var(--teal-light)}
+.btn.success{background:var(--green);color:#fff;border-color:var(--green)}
+.btn.reject{background:var(--rose);color:#fff;border-color:var(--rose)}
+.btn.danger{background:var(--rose-bg);color:var(--rose);border-color:#FECDD3}.btn.danger:hover{background:var(--rose);color:#fff}
+.btn.warn{background:var(--amber-bg);color:var(--amber);border-color:#FDE68A}.btn.warn:hover{background:var(--amber);color:#fff}
+.btn.edit-btn{background:var(--sky-bg);color:var(--sky);border-color:#BAE6FD}.btn.edit-btn:hover{background:var(--sky);color:#fff}
+.btn.violet-btn{background:var(--violet-bg);color:var(--violet);border-color:#DDD6FE}.btn.violet-btn:hover{background:var(--violet);color:#fff}
+.btn.sm{padding:4px 8px;font-size:11px}
+.btn:disabled{opacity:.35;cursor:not-allowed;pointer-events:none}
+.bg{display:flex;gap:4px;align-items:center}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:20px;font-size:11px;font-weight:500}
+.badge::before{content:'';width:6px;height:6px;border-radius:50%;display:inline-block}
+.badge.pending{background:var(--amber-bg);color:var(--amber)}.badge.pending::before{background:var(--amber)}
+.badge.approved{background:var(--green-bg);color:var(--green)}.badge.approved::before{background:var(--green)}
+.badge.rejected{background:var(--rose-bg);color:var(--rose)}.badge.rejected::before{background:var(--rose)}
+.badge.active{background:var(--green-bg);color:var(--green)}.badge.active::before{background:var(--green)}
+.badge.inactive{background:#F1F5F9;color:var(--text-light)}.badge.inactive::before{background:var(--text-light)}
+.tw{overflow-x:auto;border-radius:10px;border:0.5px solid var(--border)}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:left;padding:7px 10px;font-size:10px;font-weight:500;color:var(--text-light);background:#F8FAFC;border-bottom:0.5px solid var(--border);text-transform:uppercase;letter-spacing:.04em}
+td{padding:8px 10px;border-bottom:0.5px solid var(--border);color:var(--text);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#FAFCFF}
+.my-row td{background:#FFFBEB}
+.my-row:hover td{background:#FEF3C7}
+.tabs{display:flex;gap:2px;border-bottom:2px solid var(--border);margin-bottom:14px}
+.tab{padding:6px 12px;font-size:12px;cursor:pointer;border:none;background:none;color:var(--text-mid);border-bottom:2px solid transparent;margin-bottom:-2px;border-radius:var(--radius) var(--radius) 0 0;display:flex;align-items:center;gap:5px}
+.tab:hover{background:#F1F5F9;color:var(--navy)}
+.tab.active{color:var(--teal);border-bottom-color:var(--teal);font-weight:500;background:var(--teal-bg)}
+.stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:8px;margin-bottom:16px}
+.sc{border-radius:10px;padding:11px 13px;border:0.5px solid}
+.sc .sl{font-size:10px;font-weight:500;margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em}
+.sc .sv{font-size:22px;font-weight:500}
+.sc.st{background:var(--sky-bg);border-color:#BAE6FD;color:var(--sky)}
+.sc.sd{background:var(--violet-bg);border-color:#DDD6FE;color:var(--violet)}
+.sc.sa{background:var(--green-bg);border-color:#BBF7D0;color:var(--green)}
+.sc.sp{background:var(--amber-bg);border-color:#FDE68A;color:var(--amber)}
+.sc.sr{background:var(--rose-bg);border-color:#FECDD3;color:var(--rose)}
+.modal-backdrop{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(15,23,42,0.6);z-index:9000;display:flex;align-items:center;justify-content:center}
+.modal-box{background:#fff;border-radius:14px;padding:24px;width:420px;max-width:90vw;border:0.5px solid #E2E8F0;box-shadow:0 20px 60px rgba(15,23,42,0.3)}
+.modal-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;margin-bottom:12px}
+.modal-icon.del{background:#FFF1F2;color:#E11D48}
+.modal-icon.approve{background:#F0FDF4;color:#16A34A}
+.modal-icon.reject-ic{background:#FFF1F2;color:#E11D48}
+.modal-act{display:flex;gap:8px;justify-content:flex-end}
+.toast-el{position:fixed;bottom:20px;right:20px;padding:9px 14px;border-radius:10px;font-size:12px;font-weight:500;z-index:9999;display:flex;align-items:center;gap:6px;box-shadow:0 4px 12px rgba(0,0,0,.15)}
+.empty{text-align:center;padding:32px 20px;color:var(--text-light);font-size:12px}
+.empty i{font-size:28px;display:block;margin-bottom:6px;opacity:.35}
+.filter-bar{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;padding:10px;background:var(--surface);border-radius:10px;margin-bottom:12px;border:0.5px solid var(--border)}
+.hc{border-color:var(--teal)!important;background:var(--teal-bg)!important}
+.pill{display:inline-flex;align-items:center;padding:2px 7px;border-radius:20px;font-size:11px;font-weight:500}
+.sync-bar{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--text-light);padding:7px 10px;background:var(--white);border-radius:7px;margin-bottom:12px;border:0.5px solid var(--border)}
+.sync-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.notify-banner{padding:9px 12px;border-radius:8px;font-size:12px;display:flex;align-items:center;gap:7px;margin-bottom:12px}
+.notify-banner.info{background:var(--sky-bg);color:var(--sky);border:0.5px solid #BAE6FD}
+.notify-banner.warn{background:var(--amber-bg);color:var(--amber);border:0.5px solid #FDE68A}
+.legend{display:flex;align-items:center;gap:10px;font-size:11px;color:var(--text-light);margin-bottom:7px}
+.legend-dot{width:11px;height:11px;border-radius:2px;flex-shrink:0}
+.setup-banner{background:var(--amber-bg);border:1px solid var(--amber);border-radius:10px;padding:16px;margin-bottom:16px;font-size:13px;color:var(--amber)}
+.setup-banner h3{font-size:14px;font-weight:600;margin-bottom:6px;color:#92400E}
+.setup-banner p{color:#78350F;line-height:1.6;margin-bottom:8px}
+.setup-banner code{background:rgba(217,119,6,0.15);padding:2px 6px;border-radius:4px;font-family:monospace;font-size:12px}
+.login-wrap{display:flex;align-items:center;justify-content:center;min-height:100vh;background:var(--surface)}
+.login-card{background:var(--white);border:0.5px solid var(--border);border-radius:16px;padding:28px 24px;width:360px;box-shadow:0 4px 24px rgba(30,58,95,0.10)}
+.login-logo{width:46px;height:46px;background:var(--navy);border-radius:12px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:21px;margin:0 auto 14px}
+.login-title{font-size:16px;font-weight:500;color:var(--navy);text-align:center;margin-bottom:3px}
+.login-sub{font-size:11px;color:var(--text-light);text-align:center;margin-bottom:24px}
+.role-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.role-card{border:1.5px solid var(--border);border-radius:11px;padding:20px 14px;text-align:center;cursor:pointer;background:var(--white);display:flex;flex-direction:column;align-items:center;gap:8px;transition:all .15s}
+.role-card:hover{border-color:var(--teal);background:var(--teal-bg)}
+.role-icon{width:44px;height:44px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:20px;color:#fff}
+.role-name{font-size:14px;font-weight:500;color:var(--navy)}
+.role-desc{font-size:11px;color:var(--text-light);line-height:1.4}
+.access-denied{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:260px;text-align:center;gap:10px}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+</style>
+</head>
+<body>
+
+<div id="root"></div>
+<div id="modal-overlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(15,23,42,0.6);z-index:9000;align-items:center;justify-content:center"></div>
+<div class="toast-el" id="toast" style="display:none"></div>
+<input type="file" id="file-input" accept=".json" style="display:none" onchange="handleFileImport(event)">
+
+<script>
+// ============================================================
+// ↓ PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE ↓
+// ============================================================
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx1fzLFM6hvub1qF0nHb--JIJ5zQKmiFDh-HVrbqqSlX2ZFhwNzDjJXnMPAhMEwQMP9cA/exec';
+// ============================================================
+
+const IS_CONFIGURED = SCRIPT_URL !== 'YOUR_APPS_SCRIPT_WEB_APP_URL';
+
+// ── Seed data ──
+const SEED = {
+  resources:[
+    {id:'r_rama',    name:'Ramaprabha',      team:'t1',role:'Test Manager',      onboarded:'2021-01-01',status:'Active'},
+    {id:'r_anantha', name:'Anantha Malathi', team:'t1',role:'Sr Test Engineer',  onboarded:'2022-03-15',status:'Active'},
+    {id:'r_karthik', name:'Karthik Rajan',  team:'t1',role:'QA Engineer',        onboarded:'2023-01-10',status:'Active'},
+    {id:'r_priya',   name:'Priya Nair',     team:'t2',role:'Automation Lead',    onboarded:'2021-09-01',status:'Active'},
+    {id:'r_suresh',  name:'Suresh Babu',    team:'t2',role:'QA Engineer',        onboarded:'2022-07-20',status:'Active'},
+    {id:'r_divya',   name:'Divya Sharma',   team:'t2',role:'Business Analyst',   onboarded:'2023-05-11',status:'Active'}
+  ],
+  teams:[
+    {id:'t1',name:'ServiceNow Core', desc:'Core platform & testing', lead:'r_rama'},
+    {id:'t2',name:'Integration',     desc:'Integration & APIs',      lead:'r_priya'}
+  ],
+  approvers:[
+    {id:'a_rama',  resourceId:'r_rama',  designation:'Test Manager'},
+    {id:'a_priya', resourceId:'r_priya', designation:'Automation Lead'}
+  ],
+  leaves:[]
+};
+
+const LEAVE_TYPES = ['Comp Off','Unplanned Leave','Planned Leave'];
+let DB = null;
+let CU = null, PAGE = 'apply', STAB = 'resources', RVIEW = 'employee';
+let lastSync = null, isSaving = false;
+
+// ── Utility ──
+const tn  = id => id ? (DB.teams.find(t=>t.id===id)||{name:'—'}).name : '—';
+const rn  = id => (DB.resources.find(r=>r.id===id)||{name:'—'}).name;
+const isApp = rid => DB.approvers.some(a=>a.resourceId===rid);
+const appNameById = id => { const a=DB.approvers.find(x=>x.id===id); return a?rn(a.resourceId):'—' };
+const ac  = n => { const c=['#0D9488','#7C3AED','#D97706','#0284C7','#E11D48','#16A34A','#1E3A5F']; let h=0; for(let i=0;i<n.length;i++) h=(h+n.charCodeAt(i))%c.length; return c[h] };
+const ini = n => n.trim().split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase();
+const uid = () => 'x'+Date.now()+Math.random().toString(36).slice(2,5);
+function calcDays(f,t){if(!f||!t)return 0;let d=0,c=new Date(f),e=new Date(t);if(c>e)return 0;while(c<=e){const dw=c.getDay();if(dw&&dw!==6)d++;c.setDate(c.getDate()+1)}return d}
+
+// ── Toast ──
+function toast(msg,ok=true){
+  const t=document.getElementById('toast');
+  t.innerHTML=`<i class="ti ${ok?'ti-circle-check':'ti-circle-x'}"></i>${msg}`;
+  t.style.display='flex';t.style.background=ok?'#064E3B':'#7F1D1D';t.style.color='#fff';
+  setTimeout(()=>{t.style.display='none'},2800);
+}
+
+// ── Modal ──
+function modal(iconClass,iconName,title,body,actions){
+  const el=document.getElementById('modal-overlay');
+  el.innerHTML=`<div class="modal-box"><div class="modal-icon ${iconClass}"><i class="ti ti-${iconName}"></i></div><h3>${title}</h3><p>${body}</p><div class="modal-act">${actions}</div></div>`;
+  el.style.display='flex';
+}
+function closeModal(){const el=document.getElementById('modal-overlay');el.style.display='none';el.innerHTML=''}
+
+// ── Google Sheets API ──
+async function fetchFromSheet(){
+  if(!IS_CONFIGURED) return null;
+  try{
+    const res = await fetch(SCRIPT_URL + '?t=' + Date.now());
+    const json = await res.json();
+    if(json.ok) return json.data;
+    console.error('Sheet read error:', json.error);
+    return null;
+  }catch(e){console.error('Fetch error:',e);return null}
+}
+
+async function saveToSheet(table, rows){
+  if(!IS_CONFIGURED) return;
+  try{
+    await fetch(SCRIPT_URL, {
+      method:'POST',
+      body: JSON.stringify({action:'replace', table, rows}),
+      headers:{'Content-Type':'application/json'}
+    });
+  }catch(e){console.error('Save error:',e)}
+}
+
+async function saveAllTables(){
+  if(!IS_CONFIGURED) return;
+  isSaving=true;
+  await Promise.all([
+    saveToSheet('Resources', DB.resources),
+    saveToSheet('Teams',     DB.teams),
+    saveToSheet('Approvers', DB.approvers),
+    saveToSheet('Leaves',    DB.leaves)
+  ]);
+  isSaving=false;
+}
+
+// ── Init ──
+async function init(){
+  document.getElementById('root').innerHTML=`<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;font-size:13px;color:var(--text-light)"><i class="ti ti-loader" style="animation:spin 1s linear infinite;margin-right:8px"></i>${IS_CONFIGURED?'Loading from Google Sheets...':'Loading...'}</div>`;
+
+  if(IS_CONFIGURED){
+    const remote = await fetchFromSheet();
+    if(remote && remote.resources && remote.resources.length > 0){
+      DB = migrate(remote);
+    } else {
+      // First run — seed the sheet
+      DB = JSON.parse(JSON.stringify(SEED));
+      await saveAllTables();
+      toast('Sheet seeded with default data');
+    }
+  } else {
+    // Not configured yet — use seed data locally
+    DB = JSON.parse(JSON.stringify(SEED));
+  }
+  lastSync = new Date();
+  render();
+}
+
+function migrate(data){
+  if(!data) return null;
+  data.leaves = (data.leaves||[])
+    .filter(l => !(l.empId==='r_rama' && l.type==='Planned Leave' && l.from==='2026-07-16'))
+    .map(l => ({...l, type: l.type==='Adhoc Leave'?'Unplanned Leave':l.type}));
+  if(!data.backup_log) data.backup_log = [];
+  return data;
+}
+
+// ── Manual sync from Sheet ──
+async function refresh(){
+  const btn=document.getElementById('refresh-btn');
+  if(btn){btn.disabled=true;btn.innerHTML=`<i class="ti ti-loader" style="animation:spin 1s linear infinite"></i> Syncing...`}
+  if(IS_CONFIGURED){
+    const remote = await fetchFromSheet();
+    if(remote && remote.resources) DB = migrate(remote);
+    toast('Synced from Google Sheets');
+  } else {
+    toast('Configure SCRIPT_URL to enable sync',false);
+  }
+  lastSync=new Date();
+  render();
+}
+
+// ── Save + render ──
+async function saveAndRender(){
+  await saveAllTables();
+  lastSync=new Date();
+  render();
+}
+
+function syncBar(){
+  const dot = IS_CONFIGURED
+    ? `<div class="sync-dot" style="background:var(--green);animation:pulse 2s infinite"></div><span>Google Sheets · Last synced: ${lastSync?lastSync.toLocaleTimeString():'—'}</span>`
+    : `<div class="sync-dot" style="background:var(--amber)"></div><span style="color:var(--amber)">Not connected to Google Sheets — data is local only</span>`;
+  return`<div class="sync-bar">${dot}<button id="refresh-btn" class="btn sm" style="margin-left:auto" onclick="refresh()"><i class="ti ti-refresh"></i> Sync now</button></div>`;
+}
+
+function setupBanner(){
+  if(IS_CONFIGURED) return '';
+  return`<div class="setup-banner">
+    <h3><i class="ti ti-alert-triangle"></i> Setup Required</h3>
+    <p>To enable multi-user live sync, open <code>index.html</code> and replace <code>YOUR_APPS_SCRIPT_WEB_APP_URL</code> with your Google Apps Script deployment URL. See <code>SETUP.md</code> for step-by-step instructions.</p>
+    <p>The app works locally right now but data is not shared across devices until configured.</p>
+  </div>`;
+}
+
+/* ── Render ── */
+function render(){
+  const root=document.getElementById('root');
+  if(!CU){root.innerHTML=renderLogin();return}
+  const isAp=CU.role==='approver';
+  const pendingCount=DB.leaves.filter(l=>l.status==='Pending').length;
+  const myUpdated=!isAp?DB.leaves.filter(l=>l.empId===CU.id&&l.notified).length:0;
+  root.innerHTML=`<div class="app">
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <div class="brand-row">
+          <div class="brand-icon"><i class="ti ti-calendar-event"></i></div>
+          <div><div class="brand-name">Vista Leave Tracker</div><div class="brand-sub">ServiceNow Team</div></div>
+        </div>
+      </div>
+      <div class="user-pill">
+        <div class="u-av" style="background:${isAp?'var(--teal)':'var(--navy)'}"><i class="ti ${isAp?'ti-user-check':'ti-user'}"></i></div>
+        <div style="flex:1;min-width:0"><div class="u-name">${isAp?'Approver':'Employee'}</div><div class="u-role">${isAp?'Full access':'Leave access only'}</div></div>
+        <button class="btn-sw" onclick="logout()">Sign out</button>
+      </div>
+      <div class="nav-section">
+        <div class="nav-label">Menu</div>
+        <button class="nav-item ${PAGE==='apply'?'active':''}" onclick="go('apply')"><i class="ti ti-file-plus"></i> Apply for Leave${myUpdated>0?`<span class="badge-dot">${myUpdated}</span>`:''}</button>
+        <button class="nav-item ${PAGE==='all'?'active':''}" onclick="go('all')"><i class="ti ti-list"></i> All Leave Requests</button>
+        ${isAp
+          ?`<button class="nav-item ${PAGE==='pending'?'active':''}" onclick="go('pending')"><i class="ti ti-clock"></i> Pending Approvals${pendingCount>0?`<span class="badge-dot">${pendingCount}</span>`:''}</button>
+             <button class="nav-item ${PAGE==='settings'?'active':''}" onclick="go('settings')"><i class="ti ti-settings"></i> Settings</button>
+             <button class="nav-item ${PAGE==='reports'?'active':''}" onclick="go('reports')"><i class="ti ti-chart-bar"></i> Reports</button>
+             <button class="nav-item ${PAGE==='backup'?'active':''}" onclick="go('backup')"><i class="ti ti-database"></i> Backup & Restore</button>`
+          :`<div class="nav-item locked"><i class="ti ti-lock"></i> Approvals</div>
+             <div class="nav-item locked"><i class="ti ti-lock"></i> Settings</div>
+             <div class="nav-item locked"><i class="ti ti-lock"></i> Reports</div>
+             <div class="nav-item locked"><i class="ti ti-lock"></i> Backup</div>`}
+      </div>
+    </div>
+    <div class="main" id="mc"></div>
+  </div>`;
+  const mc=document.getElementById('mc');
+  if(PAGE==='apply')       mc.innerHTML=renderApply();
+  else if(PAGE==='all')    mc.innerHTML=renderAllLeaves();
+  else if(PAGE==='pending'&&isAp)  mc.innerHTML=renderPending();
+  else if(PAGE==='settings'&&isAp) mc.innerHTML=renderSettings();
+  else if(PAGE==='reports'&&isAp)  mc.innerHTML=renderReports();
+  else if(PAGE==='backup'&&isAp)   mc.innerHTML=renderBackup();
+  else mc.innerHTML=`<div class="access-denied"><i class="ti ti-lock" style="font-size:40px;opacity:.4"></i><h3 style="font-size:14px;font-weight:500;color:var(--navy)">Approver access only</h3></div>`;
+}
+
+function renderLogin(){
+  return`<div class="login-wrap"><div class="login-card">
+    ${!IS_CONFIGURED?`<div style="background:var(--amber-bg);border:0.5px solid var(--amber);border-radius:8px;padding:10px 12px;font-size:11px;color:#78350F;margin-bottom:16px;text-align:left"><strong>⚠ Not configured</strong> — data is local only. See SETUP.md to connect Google Sheets.</div>`:''}
+    <div class="login-logo"><i class="ti ti-calendar-event"></i></div>
+    <div class="login-title">Vista Leave Tracker</div>
+    <div class="login-sub">ServiceNow Team — select your role to continue</div>
+    <div class="role-grid">
+      <div class="role-card" onclick="loginAs('approver')">
+        <div class="role-icon" style="background:var(--teal)"><i class="ti ti-user-check"></i></div>
+        <div class="role-name">Approver</div>
+        <div class="role-desc">Manage leaves, approve requests, settings and reports</div>
+      </div>
+      <div class="role-card" onclick="loginAs('employee')">
+        <div class="role-icon" style="background:var(--navy)"><i class="ti ti-user"></i></div>
+        <div class="role-name">Employee</div>
+        <div class="role-desc">Apply for leave and view all team leave requests</div>
+      </div>
+    </div>
+  </div></div>`;
+}
+function loginAs(role){
+  if(role==='approver'){const a=DB.approvers[0];CU={id:a?a.resourceId:'r_rama',name:'Approver',role:'approver'};}
+  else CU={id:'_emp',name:'Employee',role:'employee'};
+  PAGE='apply';render();
+}
+function logout(){CU=null;render()}
+function go(p){PAGE=p;render()}
+
+/* ── Leave table ── */
+function canDeleteLeave(l){
+  const isMine=CU.id&&l.empId===CU.id;
+  if(CU.role==='approver') return l.status==='Pending'||l.status==='Approved';
+  return isMine&&l.status==='Pending';
+}
+function renderLeaveTableFull(leaves,opts={}){
+  const{showEmployee=true,showDelete=true,myEmpId=''}=opts;
+  if(!leaves.length)return`<div class="empty"><i class="ti ti-inbox"></i>No leave records.</div>`;
+  return`
+  ${myEmpId?`<div class="legend"><span style="display:flex;align-items:center;gap:4px"><div class="legend-dot" style="background:#FEF3C7;border:1px solid #FDE68A"></div>Your requests</span><span style="display:flex;align-items:center;gap:4px"><div class="legend-dot" style="background:#F8FAFC;border:0.5px solid var(--border)"></div>Team members</span></div>`:''}
+  <div class="tw"><table>
+    <tr>${showEmployee?'<th>Employee</th>':''}<th>Type</th><th>From</th><th>To</th><th>Days</th><th>Backup</th><th>Approver</th><th>Status</th>${showDelete?'<th></th>':''}</tr>
+    ${leaves.map(l=>{
+      const isMine=myEmpId&&l.empId===myEmpId;
+      const isNew=l.notified&&l.empId===myEmpId;
+      const cd=showDelete&&canDeleteLeave(l);
+      return`<tr class="${isMine?'my-row':''}">
+        ${showEmployee?`<td><div style="display:flex;align-items:center;gap:6px">
+          <div style="width:22px;height:22px;border-radius:50%;background:${ac(rn(l.empId))};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:500;color:#fff;flex-shrink:0">${ini(rn(l.empId))}</div>
+          <span style="font-weight:${isMine?'500':'400'};color:${isMine?'var(--navy)':'var(--text)'}">${rn(l.empId)}${isMine?' <span style="font-size:10px;color:var(--amber)">(you)</span>':''}</span>
+        </div></td>`:''}
+        <td><span class="pill" style="background:var(--violet-bg);color:var(--violet)">${l.type}</span></td>
+        <td>${l.from}</td><td>${l.to}</td>
+        <td style="text-align:center;font-weight:500">${l.days}</td>
+        <td style="font-size:11px">${l.backup?rn(l.backup):'—'}</td>
+        <td style="font-size:11px;color:var(--text-mid)">${l.approver?appNameById(l.approver):'—'}</td>
+        <td><span class="badge ${l.status.toLowerCase()}">${l.status}</span>${isNew?`<span style="font-size:10px;color:var(--sky);margin-left:3px">● updated</span>`:''}</td>
+        ${showDelete?`<td><button class="btn sm danger" onclick="deleteLeave('${l.id}')" ${cd?'':'disabled'}><i class="ti ti-trash"></i></button></td>`:''}
+      </tr>`;
+    }).join('')}
+  </table></div>`;
+}
+
+/* ── Apply ── */
+function renderApply(){
+  const isAp=CU.role==='approver';
+  const allActive=DB.resources.filter(r=>r.status==='Active');
+  const updatedLeaves=!isAp?DB.leaves.filter(l=>l.empId===CU.id&&l.notified):[];
+  const myLeaves=DB.leaves.filter(l=>l.empId===CU.id);
+  return`
+  ${setupBanner()}${syncBar()}
+  ${updatedLeaves.length>0?`<div class="notify-banner info"><i class="ti ti-bell"></i><strong>${updatedLeaves.length} leave request(s)</strong> updated by approver.<button class="btn sm" style="margin-left:auto" onclick="clearNotifs()">Dismiss</button></div>`:''}
+  <div class="page-title"><i class="ti ti-file-plus" style="color:var(--teal)"></i>Apply for Leave</div>
+  <div class="page-sub">${isAp?'Submit a leave request on behalf of any employee':'Submit your leave request'}</div>
+  <div class="card">
+    <div class="card-hdr"><div class="card-ttl"><i class="ti ti-forms"></i>New leave request</div></div>
+    <div class="form-row">
+      <div class="fg"><label>${isAp?'Employee *':'Your name *'}</label>
+        <select id="lv-emp" onchange="updateBackupList()"><option value="">Select ${isAp?'employee':'your name'}</option>${allActive.map(r=>`<option value="${r.id}">${r.name}${r.role?' · '+r.role:''}</option>`).join('')}</select>
+      </div>
+      <div class="fg"><label>Leave type *</label>
+        <select id="lv-type"><option value="">Select leave type</option>${LEAVE_TYPES.map(t=>`<option>${t}</option>`).join('')}</select>
+      </div>
+    </div>
+    <div class="form-row three">
+      <div class="fg"><label>From date *</label><input type="date" id="lv-from" onchange="recalc()"></div>
+      <div class="fg"><label>To date *</label><input type="date" id="lv-to" onchange="recalc()"></div>
+      <div class="fg"><label>Working days</label><input type="text" id="lv-days" readonly placeholder="Auto calculated"></div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>Backup person</label>
+        <select id="lv-backup"><option value="">Select backup (optional)</option>${allActive.map(r=>`<option value="${r.id}">${r.name}</option>`).join('')}</select>
+      </div>
+      <div class="fg"><label>Reason (optional)</label><textarea id="lv-reason" rows="1" placeholder="Reason for leave"></textarea></div>
+    </div>
+    <button class="btn teal" onclick="submitLeave()"><i class="ti ti-send"></i> Submit Request</button>
+  </div>
+  <div class="card">
+    <div class="card-hdr"><div class="card-ttl"><i class="ti ti-history"></i>My leave history</div><span style="font-size:11px;color:var(--text-light)">${myLeaves.length} record(s)</span></div>
+    ${renderLeaveTableFull(myLeaves,{showEmployee:false,showDelete:true,myEmpId:CU.id})}
+  </div>`;
+}
+
+function renderAllLeaves(){
+  const allLeaves=DB.leaves.slice().sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
+  return`
+  ${syncBar()}
+  <div class="page-title"><i class="ti ti-list" style="color:var(--navy)"></i>All Leave Requests</div>
+  <div class="page-sub">Complete leave register — visible to everyone.${CU.role!=='approver'?' Highlighted rows are your requests.':''}</div>
+  <div class="stats-row">
+    <div class="sc st"><div class="sl">Total</div><div class="sv">${allLeaves.length}</div></div>
+    <div class="sc sa"><div class="sl">Approved</div><div class="sv">${allLeaves.filter(l=>l.status==='Approved').length}</div></div>
+    <div class="sc sp"><div class="sl">Pending</div><div class="sv">${allLeaves.filter(l=>l.status==='Pending').length}</div></div>
+    <div class="sc sr"><div class="sl">Rejected</div><div class="sv">${allLeaves.filter(l=>l.status==='Rejected').length}</div></div>
+  </div>
+  <div class="card">
+    <div class="card-hdr">
+      <div class="card-ttl"><i class="ti ti-table"></i>Leave register</div>
+      <div style="display:flex;gap:7px">
+        <select id="al-status" onchange="filterAllLeaves()" style="font-size:11px;padding:4px 7px;border:0.5px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text)">
+          <option value="">All statuses</option><option>Pending</option><option>Approved</option><option>Rejected</option>
+        </select>
+        <select id="al-emp" onchange="filterAllLeaves()" style="font-size:11px;padding:4px 7px;border:0.5px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text)">
+          <option value="">All employees</option>${DB.resources.map(r=>`<option value="${r.id}">${r.name}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div id="all-leaves-body">${renderLeaveTableFull(allLeaves,{showEmployee:true,showDelete:true,myEmpId:CU.id})}</div>
+  </div>`;
+}
+function filterAllLeaves(){
+  const status=document.getElementById('al-status')?.value||'';
+  const empId=document.getElementById('al-emp')?.value||'';
+  let leaves=DB.leaves.slice().sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
+  if(status)leaves=leaves.filter(l=>l.status===status);
+  if(empId)leaves=leaves.filter(l=>l.empId===empId);
+  const el=document.getElementById('all-leaves-body');
+  if(el)el.innerHTML=renderLeaveTableFull(leaves,{showEmployee:true,showDelete:true,myEmpId:CU.id});
+}
+function clearNotifs(){DB.leaves=DB.leaves.map(l=>l.empId===CU.id?{...l,notified:false}:l);saveAndRender()}
+function updateBackupList(){
+  const empId=document.getElementById('lv-emp')?.value;
+  const backupEl=document.getElementById('lv-backup');if(!backupEl)return;
+  const allActive=DB.resources.filter(r=>r.status==='Active');
+  const empRes=allActive.find(r=>r.id===empId);const empTeam=empRes?.team||'';
+  const options=empTeam?allActive.filter(r=>r.team===empTeam&&r.id!==empId):allActive.filter(r=>r.id!==empId);
+  backupEl.innerHTML=`<option value="">Select backup (optional)</option>${options.map(r=>`<option value="${r.id}">${r.name}</option>`).join('')}`;
+}
+function recalc(){const f=document.getElementById('lv-from')?.value,t=document.getElementById('lv-to')?.value;const el=document.getElementById('lv-days');if(el){const d=calcDays(f,t);el.value=d>0?d+' day(s)':''}}
+function submitLeave(){
+  const empId=document.getElementById('lv-emp')?.value||'';
+  const type=document.getElementById('lv-type').value;
+  const from=document.getElementById('lv-from').value;
+  const to=document.getElementById('lv-to').value;
+  const backup=document.getElementById('lv-backup')?.value||'';
+  const reason=document.getElementById('lv-reason')?.value||'';
+  if(!empId||!type||!from||!to){toast('Fill all required fields',false);return}
+  if(new Date(to)<new Date(from)){toast('To Date must be after From Date',false);return}
+  DB.leaves.push({id:uid(),empId,type,from,to,days:calcDays(from,to),backup,reason,approver:'',status:'Pending',notified:false,createdAt:new Date().toISOString()});
+  saveAndRender().then(()=>toast('Leave request submitted'));
+}
+function deleteLeave(id){
+  const l=DB.leaves.find(x=>x.id===id);if(!l)return;
+  const isMine=l.empId===CU.id;const isAp=CU.role==='approver';
+  if(!isAp&&!isMine){toast('You can only delete your own requests',false);return}
+  if(!isAp&&l.status!=='Pending'){toast('Cannot delete — leave is '+l.status,false);return}
+  if(isAp&&l.status==='Rejected'){toast('Cannot delete rejected leaves',false);return}
+  const warn=l.status==='Approved'?`<strong style="color:#E11D48">Warning: this leave is already Approved.</strong><br>`:'';
+  modal('del','trash','Delete leave request',`${warn}Delete <strong>${rn(l.empId)}'s</strong> ${l.type}<br>(${l.from} → ${l.to}, ${l.days} day(s))? Cannot be undone.`,
+    `<button class="btn" onclick="closeModal()">Cancel</button><button class="btn danger" onclick="confirmDelLeave('${id}')"><i class="ti ti-trash"></i> Delete</button>`);
+}
+function confirmDelLeave(id){closeModal();DB.leaves=DB.leaves.filter(l=>l.id!==id);saveAndRender().then(()=>toast('Leave deleted'))}
+
+/* ── Pending Approvals ── */
+function renderPending(){
+  const leaves=DB.leaves,pending=leaves.filter(l=>l.status==='Pending'),approvers=DB.approvers;
+  return`
+  ${syncBar()}
+  <div class="page-title"><i class="ti ti-clock" style="color:var(--amber)"></i>Pending Approvals</div>
+  <div class="page-sub">Assign an approver first, then approve or reject. Approver selection is mandatory.</div>
+  ${pending.length===0
+    ?`<div class="card"><div class="empty"><i class="ti ti-checks"></i>All caught up — no pending requests.</div></div>`
+    :`<div class="tw" style="margin-bottom:12px"><table>
+      <tr><th>Employee</th><th>Team</th><th>Type</th><th>From</th><th>To</th><th>Days</th><th>Backup</th><th>Approver *</th><th>Reason</th><th>Action</th></tr>
+      ${pending.map(l=>{const r=DB.resources.find(x=>x.id===l.empId)||{};return`<tr>
+        <td><div style="display:flex;align-items:center;gap:6px"><div style="width:24px;height:24px;border-radius:50%;background:${ac(r.name||'?')};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:500;color:#fff">${ini(r.name||'?')}</div><span style="font-weight:500;color:var(--navy)">${r.name||'—'}</span></div></td>
+        <td>${tn(r.team)}</td><td><span class="pill" style="background:var(--violet-bg);color:var(--violet)">${l.type}</span></td>
+        <td>${l.from}</td><td>${l.to}</td><td style="text-align:center;font-weight:500">${l.days}</td>
+        <td style="font-size:11px">${l.backup?rn(l.backup):'—'}</td>
+        <td><select id="app-sel-${l.id}" style="font-size:11px;padding:4px 6px;border:0.5px solid ${l.approver?'var(--border)':'var(--rose)'};border-radius:var(--radius);background:var(--surface);color:var(--text);min-width:120px" onchange="saveApproverSelection('${l.id}',this.value)">
+          <option value="">— select —</option>${approvers.map(a=>`<option value="${a.id}" ${l.approver===a.id?'selected':''}>${rn(a.resourceId)}</option>`).join('')}
+        </select>${!l.approver?`<div style="font-size:10px;color:var(--rose);margin-top:2px">Required</div>`:''}</td>
+        <td style="color:var(--text-mid);font-size:11px">${l.reason||'—'}</td>
+        <td><div class="bg">
+          <button class="btn sm success" onclick="promptApprove('${l.id}','Approved')" ${l.approver?'':'disabled'}><i class="ti ti-check"></i> Approve</button>
+          <button class="btn sm reject" onclick="promptApprove('${l.id}','Rejected')" ${l.approver?'':'disabled'}><i class="ti ti-x"></i> Reject</button>
+        </div></td>
+      </tr>`}).join('')}
+    </table></div>`}`;
+}
+function saveApproverSelection(lid,aid){
+  const l=DB.leaves.find(x=>x.id===lid);if(l){l.approver=aid;saveToSheet('Leaves',DB.leaves)}
+  const ab=document.querySelector(`button[onclick="promptApprove('${lid}','Approved')"]`);
+  const rb=document.querySelector(`button[onclick="promptApprove('${lid}','Rejected')"]`);
+  const sel=document.getElementById(`app-sel-${lid}`);const hint=sel?.nextElementSibling;
+  if(aid){if(ab)ab.disabled=false;if(rb)rb.disabled=false;if(sel)sel.style.borderColor='var(--border)';if(hint)hint.style.display='none';}
+  else{if(ab)ab.disabled=true;if(rb)rb.disabled=true;if(sel)sel.style.borderColor='var(--rose)';if(hint)hint.style.display='block';}
+}
+function promptApprove(id,status){
+  const l=DB.leaves.find(x=>x.id===id);if(!l)return;
+  if(!l.approver){toast('Assign an approver first',false);return}
+  const r=DB.resources.find(x=>x.id===l.empId)||{};const isApprove=status==='Approved';
+  modal(isApprove?'approve':'reject-ic',isApprove?'check':'x',
+    (isApprove?'Approve':'Reject')+' leave request',
+    `<strong>${r.name||'Employee'}</strong> — ${l.type}<br>${l.from} → ${l.to} (${l.days} day(s))<br>Approver: <strong>${appNameById(l.approver)}</strong>`,
+    `<button class="btn" onclick="closeModal()">Cancel</button><button class="btn ${isApprove?'success':'reject'}" onclick="updLeave('${id}','${status}')"><i class="ti ti-${isApprove?'check':'x'}"></i> Confirm ${status}</button>`);
+}
+function updLeave(id,status){
+  const l=DB.leaves.find(x=>x.id===id);if(!l)return;
+  if(!l.approver){toast('Assign an approver first',false);return}
+  l.status=status;l.notified=true;l.updatedAt=new Date().toISOString();
+  closeModal();saveAndRender().then(()=>toast(`Leave marked as ${status}`));
+}
+
+/* ── Settings ── */
+function renderSettings(){
+  return`<div class="page-title"><i class="ti ti-settings" style="color:var(--teal)"></i>Settings</div>
+  <div class="page-sub">Manage resources, teams, and approvers</div>
+  <div class="tabs">
+    <button class="tab ${STAB==='resources'?'active':''}" onclick="stab('resources')"><i class="ti ti-users"></i>Resources</button>
+    <button class="tab ${STAB==='teams'?'active':''}" onclick="stab('teams')"><i class="ti ti-building"></i>Teams</button>
+    <button class="tab ${STAB==='approvers'?'active':''}" onclick="stab('approvers')"><i class="ti ti-user-check"></i>Approvers</button>
+  </div>
+  ${STAB==='resources'?renderResTab():''}${STAB==='teams'?renderTeamTab():''}${STAB==='approvers'?renderAppTab():''}`;
+}
+function stab(t){STAB=t;render()}
+function renderResTab(){
+  const res=DB.resources;
+  return`<div class="card-hdr" style="margin-bottom:10px"><div class="card-ttl" style="font-size:13px"><i class="ti ti-users" style="color:var(--navy)"></i>Resources <span class="pill" style="background:var(--sky-bg);color:var(--sky)">${res.length}</span></div><button class="btn teal sm" onclick="openResForm()"><i class="ti ti-plus"></i> Add</button></div>
+  <div id="res-form"></div>
+  <div class="tw">${res.length===0?`<div class="empty"><i class="ti ti-users"></i>No resources yet.</div>`:
+  `<table><tr><th>Name</th><th>Team</th><th>Role</th><th>Onboarded</th><th>Status</th><th>Actions</th></tr>
+  ${res.map(r=>`<tr><td><div style="display:flex;align-items:center;gap:6px"><div style="width:24px;height:24px;border-radius:50%;background:${ac(r.name)};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:500;color:#fff">${ini(r.name)}</div><span style="font-weight:500;color:var(--navy)">${r.name}</span>${isApp(r.id)?`<span class="pill" style="background:var(--teal-bg);color:var(--teal);font-size:10px">Approver</span>`:''}</div></td>
+  <td>${tn(r.team)}</td><td style="color:var(--text-mid)">${r.role||'—'}</td><td style="color:var(--text-mid)">${r.onboarded}</td>
+  <td><span class="badge ${r.status.toLowerCase()}">${r.status}</span></td>
+  <td><div class="bg"><button class="btn sm edit-btn" onclick="openResForm('${r.id}')"><i class="ti ti-edit"></i> Edit</button><button class="btn sm warn" onclick="toggleRes('${r.id}')">${r.status==='Active'?'Deactivate':'Activate'}</button><button class="btn sm danger" onclick="delRes('${r.id}','${r.name.replace(/'/g,"\\'")}')"><i class="ti ti-trash"></i></button></div></td></tr>`).join('')}
+  </table>`}</div>`;
+}
+function openResForm(id){
+  const teams=DB.teams;const r=id?DB.resources.find(x=>x.id===id):null;
+  document.getElementById('res-form').innerHTML=`<div class="card hc" style="margin-bottom:12px"><div class="card-ttl" style="margin-bottom:10px"><i class="ti ${r?'ti-edit':'ti-user-plus'}" style="color:var(--teal)"></i>${r?'Edit resource':'Add resource'}</div>
+  <div class="form-row"><div class="fg"><label>Full name *</label><input type="text" id="rn-name" value="${r?r.name.replace(/"/g,'&quot;'):''}" placeholder="Full name"></div><div class="fg"><label>Role</label><input type="text" id="rn-role" value="${r?(r.role||'').replace(/"/g,'&quot;'):''}" placeholder="e.g. QA Engineer"></div></div>
+  <div class="form-row"><div class="fg"><label>Team</label><select id="rn-team"><option value="">No team (optional)</option>${teams.map(t=>`<option value="${t.id}" ${r&&r.team===t.id?'selected':''}>${t.name}</option>`).join('')}</select></div><div class="fg"><label>Onboarded date *</label><input type="date" id="rn-ob" value="${r?r.onboarded:''}"></div></div>
+  <div style="display:flex;gap:8px"><button class="btn teal" onclick="saveRes('${id||''}')"><i class="ti ti-check"></i> ${r?'Update':'Save'}</button><button class="btn" onclick="document.getElementById('res-form').innerHTML=''"><i class="ti ti-x"></i> Cancel</button></div></div>`;
+}
+function saveRes(id){
+  const name=document.getElementById('rn-name').value.trim(),role=document.getElementById('rn-role').value.trim(),team=document.getElementById('rn-team').value,onboarded=document.getElementById('rn-ob').value;
+  if(!name||!onboarded){toast('Name and onboarded date are required',false);return}
+  if(id){const r=DB.resources.find(x=>x.id===id);if(r)Object.assign(r,{name,role,team,onboarded});toast('Resource updated');}
+  else{DB.resources.push({id:uid(),name,role,team,onboarded,status:'Active'});toast('Resource added');}
+  saveAndRender();
+}
+function toggleRes(id){const r=DB.resources.find(x=>x.id===id);if(r){r.status=r.status==='Active'?'Inactive':'Active';saveAndRender()}}
+function delRes(id,name){
+  const reasons=[];
+  if(DB.leaves.some(l=>l.empId===id||l.backup===id))reasons.push('has leave records');
+  if(DB.approvers.some(a=>a.resourceId===id))reasons.push('is an approver');
+  if(DB.teams.some(t=>t.lead===id))reasons.push('is a team lead');
+  if(reasons.length){toast(`Cannot delete — ${name} ${reasons.join(', ')}`,false);return}
+  modal('del','trash','Delete resource',`Delete <strong>${name}</strong>? Cannot be undone.`,
+    `<button class="btn" onclick="closeModal()">Cancel</button><button class="btn danger" onclick="confirmDelRes('${id}')"><i class="ti ti-trash"></i> Delete</button>`);
+}
+function confirmDelRes(id){closeModal();DB.resources=DB.resources.filter(r=>r.id!==id);saveAndRender().then(()=>toast('Resource deleted'))}
+function renderTeamTab(){
+  const teams=DB.teams;
+  return`<div class="card-hdr" style="margin-bottom:10px"><div class="card-ttl" style="font-size:13px"><i class="ti ti-building" style="color:var(--navy)"></i>Teams <span class="pill" style="background:var(--sky-bg);color:var(--sky)">${teams.length}</span></div><button class="btn teal sm" onclick="openTeamForm()"><i class="ti ti-plus"></i> Add</button></div>
+  <div id="team-form"></div>
+  <div class="tw">${teams.length===0?`<div class="empty"><i class="ti ti-building"></i>No teams yet.</div>`:
+  `<table><tr><th>Team name</th><th>Description</th><th>Lead</th><th>Members</th><th>Actions</th></tr>
+  ${teams.map(t=>{const mem=DB.resources.filter(r=>r.team===t.id&&r.status==='Active').length;return`<tr>
+    <td style="font-weight:500;color:var(--navy)">${t.name}</td><td style="color:var(--text-mid)">${t.desc||'—'}</td>
+    <td>${t.lead?rn(t.lead):'<span style="color:var(--text-light);font-style:italic">Not set</span>'}</td>
+    <td><span class="pill" style="background:var(--sky-bg);color:var(--sky)">${mem}</span></td>
+    <td><div class="bg"><button class="btn sm edit-btn" onclick="openTeamForm('${t.id}')"><i class="ti ti-edit"></i> Edit</button><button class="btn sm danger" onclick="delTeam('${t.id}','${t.name.replace(/'/g,"\\'")}')"><i class="ti ti-trash"></i></button></div></td>
+  </tr>`}).join('')}</table>`}</div>`;
+}
+function openTeamForm(id){
+  const res=DB.resources.filter(r=>r.status==='Active');const t=id?DB.teams.find(x=>x.id===id):null;
+  document.getElementById('team-form').innerHTML=`<div class="card hc" style="margin-bottom:12px"><div class="card-ttl" style="margin-bottom:10px"><i class="ti ${t?'ti-edit':'ti-building-plus'}" style="color:var(--teal)"></i>${t?'Edit team':'Add team'}</div>
+  <div class="form-row"><div class="fg"><label>Team name *</label><input type="text" id="tn-name" value="${t?t.name.replace(/"/g,'&quot;'):''}" placeholder="Team name"></div><div class="fg"><label>Description</label><input type="text" id="tn-desc" value="${t?(t.desc||'').replace(/"/g,'&quot;'):''}" placeholder="Brief description"></div></div>
+  <div class="form-row"><div class="fg"><label>Team lead <span style="color:var(--text-light);font-size:10px">(optional)</span></label><select id="tn-lead"><option value="">No lead</option>${res.map(r=>`<option value="${r.id}" ${t&&t.lead===r.id?'selected':''}>${r.name}</option>`).join('')}</select></div></div>
+  <div style="display:flex;gap:8px"><button class="btn teal" onclick="saveTeam('${id||''}')"><i class="ti ti-check"></i> ${t?'Update':'Save'}</button><button class="btn" onclick="document.getElementById('team-form').innerHTML=''"><i class="ti ti-x"></i> Cancel</button></div></div>`;
+}
+function saveTeam(id){
+  const name=document.getElementById('tn-name').value.trim(),desc=document.getElementById('tn-desc').value.trim(),lead=document.getElementById('tn-lead').value;
+  if(!name){toast('Team name is required',false);return}
+  if(id){const t=DB.teams.find(x=>x.id===id);if(t)Object.assign(t,{name,desc,lead});toast('Team updated');}
+  else{DB.teams.push({id:uid(),name,desc,lead});toast('Team added');}
+  saveAndRender();
+}
+function delTeam(id,name){
+  if(DB.resources.some(r=>r.team===id)){toast(`Cannot delete — ${name} has members`,false);return}
+  modal('del','trash','Delete team',`Delete team <strong>${name}</strong>? Cannot be undone.`,
+    `<button class="btn" onclick="closeModal()">Cancel</button><button class="btn danger" onclick="confirmDelTeam('${id}')"><i class="ti ti-trash"></i> Delete</button>`);
+}
+function confirmDelTeam(id){closeModal();DB.teams=DB.teams.filter(t=>t.id!==id);saveAndRender().then(()=>toast('Team deleted'))}
+function renderAppTab(){
+  const approvers=DB.approvers;
+  return`<div class="card-hdr" style="margin-bottom:10px"><div class="card-ttl" style="font-size:13px"><i class="ti ti-user-check" style="color:var(--navy)"></i>Approvers <span class="pill" style="background:var(--sky-bg);color:var(--sky)">${approvers.length}</span></div><button class="btn teal sm" onclick="openAppForm()"><i class="ti ti-plus"></i> Add</button></div>
+  <div id="app-form"></div>
+  <div class="tw">${approvers.length===0?`<div class="empty"><i class="ti ti-user-check"></i>No approvers yet.</div>`:
+  `<table><tr><th>Name</th><th>Designation</th><th>Team</th><th>Actions</th></tr>
+  ${approvers.map(a=>{const r=DB.resources.find(x=>x.id===a.resourceId)||{};return`<tr>
+    <td style="font-weight:500;color:var(--navy)">${r.name||'—'}</td>
+    <td><span class="pill" style="background:var(--violet-bg);color:var(--violet)">${a.designation}</span></td>
+    <td>${tn(r.team)}</td>
+    <td><div class="bg"><button class="btn sm edit-btn" onclick="openAppForm('${a.id}')"><i class="ti ti-edit"></i> Edit</button><button class="btn sm danger" onclick="delApp('${a.id}','${(r.name||'approver').replace(/'/g,"\\'")}')"><i class="ti ti-trash"></i></button></div></td>
+  </tr>`}).join('')}</table>`}</div>`;
+}
+function openAppForm(id){
+  const res=DB.resources.filter(r=>r.status==='Active');const existing=DB.approvers.map(a=>a.resourceId);const a=id?DB.approvers.find(x=>x.id===id):null;
+  document.getElementById('app-form').innerHTML=`<div class="card hc" style="margin-bottom:12px"><div class="card-ttl" style="margin-bottom:10px"><i class="ti ${a?'ti-edit':'ti-user-plus'}" style="color:var(--teal)"></i>${a?'Edit approver':'Add approver'}</div>
+  <div class="form-row"><div class="fg"><label>Resource *</label><select id="ap-res" ${a?'disabled':''}><option value="">Select resource</option>${(a?res.filter(r=>r.id===a.resourceId):res.filter(r=>!existing.includes(r.id))).map(r=>`<option value="${r.id}" ${a&&a.resourceId===r.id?'selected':''}>${r.name}</option>`).join('')}</select></div>
+  <div class="fg"><label>Designation *</label><input type="text" id="ap-des" value="${a?a.designation.replace(/"/g,'&quot;'):''}" placeholder="e.g. Test Manager"></div></div>
+  <div style="display:flex;gap:8px"><button class="btn teal" onclick="saveApp('${id||''}')"><i class="ti ti-check"></i> ${a?'Update':'Save'}</button><button class="btn" onclick="document.getElementById('app-form').innerHTML=''"><i class="ti ti-x"></i> Cancel</button></div></div>`;
+}
+function saveApp(id){
+  const des=document.getElementById('ap-des').value.trim();const resEl=document.getElementById('ap-res');const rid=id?DB.approvers.find(x=>x.id===id)?.resourceId:resEl.value;
+  if(!des||(!rid&&!id)){toast('Fill all fields',false);return}
+  if(id){const a=DB.approvers.find(x=>x.id===id);if(a)a.designation=des;toast('Approver updated');}
+  else{DB.approvers.push({id:uid(),resourceId:rid,designation:des});toast('Approver added');}
+  saveAndRender();
+}
+function delApp(id,name){
+  if(DB.leaves.some(l=>l.approver===id)){toast(`Cannot delete — ${name} has leave requests`,false);return}
+  modal('del','trash','Remove approver',`Remove <strong>${name}</strong> as approver?`,
+    `<button class="btn" onclick="closeModal()">Cancel</button><button class="btn danger" onclick="confirmDelApp('${id}')"><i class="ti ti-trash"></i> Remove</button>`);
+}
+function confirmDelApp(id){closeModal();DB.approvers=DB.approvers.filter(a=>a.id!==id);saveAndRender().then(()=>toast('Approver removed'))}
+
+/* ── Reports ── */
+function renderReports(){
+  const leaves=DB.leaves,totalDays=leaves.reduce((s,l)=>s+l.days,0);
+  return`<div class="page-title"><i class="ti ti-chart-bar" style="color:var(--teal)"></i>Reports</div><div class="page-sub">Analyse leave data</div>
+  <div class="stats-row">
+    <div class="sc st"><div class="sl">Total</div><div class="sv">${leaves.length}</div></div>
+    <div class="sc sd"><div class="sl">Days</div><div class="sv">${totalDays}</div></div>
+    <div class="sc sa"><div class="sl">Approved</div><div class="sv">${leaves.filter(l=>l.status==='Approved').length}</div></div>
+    <div class="sc sp"><div class="sl">Pending</div><div class="sv">${leaves.filter(l=>l.status==='Pending').length}</div></div>
+    <div class="sc sr"><div class="sl">Rejected</div><div class="sv">${leaves.filter(l=>l.status==='Rejected').length}</div></div>
+  </div>
+  <div class="card">
+    <div class="filter-bar">
+      <div class="fg"><label>From</label><input type="date" id="rf"></div>
+      <div class="fg"><label>To</label><input type="date" id="rt"></div>
+      <div class="fg"><label>Status</label><select id="rs"><option value="">All</option><option>Pending</option><option>Approved</option><option>Rejected</option></select></div>
+      <div style="display:flex;gap:8px;align-items:flex-end">
+        <button class="btn primary" onclick="genRpt()"><i class="ti ti-refresh"></i> Generate</button>
+        <button class="btn" onclick="exportCSV()"><i class="ti ti-download"></i> Export CSV</button>
+      </div>
+    </div>
+    <div class="tabs" style="margin-bottom:12px">
+      <button class="tab ${RVIEW==='employee'?'active':''}" onclick="srv('employee')"><i class="ti ti-user"></i>Employee</button>
+      <button class="tab ${RVIEW==='team'?'active':''}" onclick="srv('team')"><i class="ti ti-building"></i>Team</button>
+      <button class="tab ${RVIEW==='approver'?'active':''}" onclick="srv('approver')"><i class="ti ti-user-check"></i>Approver</button>
+    </div>
+    <div id="rpt-body">${renderRptBody(leaves)}</div>
+  </div>`;
+}
+function getFLeaves(){let l=DB.leaves;const f=document.getElementById('rf')?.value,t=document.getElementById('rt')?.value,s=document.getElementById('rs')?.value;if(f)l=l.filter(x=>x.from>=f);if(t)l=l.filter(x=>x.to<=t);if(s)l=l.filter(x=>x.status===s);return l}
+function genRpt(){document.getElementById('rpt-body').innerHTML=renderRptBody(getFLeaves())}
+function srv(v){RVIEW=v;render();setTimeout(()=>genRpt(),40)}
+window._fl=[];
+function renderRptBody(leaves){window._fl=leaves;if(RVIEW==='employee')return renderEmpRpt(leaves);if(RVIEW==='team')return renderTeamRpt(leaves);return renderAppRpt(leaves)}
+function renderEmpRpt(leaves){
+  if(!leaves.length)return`<div class="empty"><i class="ti ti-inbox"></i>No data.</div>`;
+  return`<div class="tw"><table><tr><th>Employee</th><th>Team</th><th>Type</th><th>From</th><th>To</th><th>Days</th><th>Backup</th><th>Approver</th><th>Status</th></tr>
+  ${leaves.map(l=>{const r=DB.resources.find(x=>x.id===l.empId)||{};return`<tr><td style="font-weight:500;color:var(--navy)">${r.name||'—'}</td><td>${tn(r.team)}</td><td><span class="pill" style="background:var(--violet-bg);color:var(--violet)">${l.type}</span></td><td>${l.from}</td><td>${l.to}</td><td style="text-align:center;font-weight:500">${l.days}</td><td>${l.backup?rn(l.backup):'—'}</td><td style="font-size:11px;color:var(--text-mid)">${l.approver?appNameById(l.approver):'—'}</td><td><span class="badge ${l.status.toLowerCase()}">${l.status}</span></td></tr>`}).join('')}</table></div>`;
+}
+function renderTeamRpt(leaves){
+  const teams=DB.teams;if(!teams.length)return`<div class="empty"><i class="ti ti-building"></i>No teams.</div>`;
+  const maxD=Math.max(...teams.map(t=>{const m=DB.resources.filter(r=>r.team===t.id).map(r=>r.id);return leaves.filter(l=>m.includes(l.empId)).reduce((s,l)=>s+l.days,0);}),1);
+  return`<div class="tw"><table><tr><th>Team</th><th>Members</th><th>Days</th><th style="min-width:80px">Distribution</th><th>Approved</th><th>Pending</th><th>Rejected</th></tr>
+  ${teams.map(t=>{const m=DB.resources.filter(r=>r.team===t.id).map(r=>r.id);const tl=leaves.filter(l=>m.includes(l.empId));const days=tl.reduce((s,l)=>s+l.days,0);return`<tr><td style="font-weight:500;color:var(--navy)">${t.name}</td><td style="text-align:center"><span class="pill" style="background:var(--sky-bg);color:var(--sky)">${m.length}</span></td><td style="text-align:center;font-weight:500">${days}</td><td><div style="background:#F1F5F9;border-radius:4px;height:8px;overflow:hidden"><div style="background:linear-gradient(90deg,var(--teal),var(--sky));height:100%;width:${Math.round(days/maxD*100)}%;border-radius:4px"></div></div></td><td style="text-align:center;color:var(--green);font-weight:500">${tl.filter(l=>l.status==='Approved').length}</td><td style="text-align:center;color:var(--amber);font-weight:500">${tl.filter(l=>l.status==='Pending').length}</td><td style="text-align:center;color:var(--rose);font-weight:500">${tl.filter(l=>l.status==='Rejected').length}</td></tr>`}).join('')}</table></div>`;
+}
+function renderAppRpt(leaves){
+  const approvers=DB.approvers;if(!approvers.length)return`<div class="empty"><i class="ti ti-user-check"></i>No approvers.</div>`;
+  return`<div class="tw"><table><tr><th>Approver</th><th>Designation</th><th>Total</th><th>Approved</th><th>Pending</th><th>Rejected</th></tr>
+  ${approvers.map(a=>{const al=leaves.filter(l=>l.approver===a.id);return`<tr><td style="font-weight:500;color:var(--navy)">${rn(a.resourceId)}</td><td><span class="pill" style="background:var(--violet-bg);color:var(--violet)">${a.designation}</span></td><td style="text-align:center;font-weight:500">${al.length}</td><td style="text-align:center;color:var(--green);font-weight:500">${al.filter(l=>l.status==='Approved').length}</td><td style="text-align:center;color:var(--amber);font-weight:500">${al.filter(l=>l.status==='Pending').length}</td><td style="text-align:center;color:var(--rose);font-weight:500">${al.filter(l=>l.status==='Rejected').length}</td></tr>`}).join('')}</table></div>`;
+}
+function exportCSV(){
+  const leaves=window._fl||DB.leaves;if(!leaves.length){toast('No data to export',false);return}
+  let csv='Employee,Team,Type,From,To,Days,Backup,Approver,Status\n';
+  leaves.forEach(l=>{const r=DB.resources.find(x=>x.id===l.empId)||{};csv+=`"${r.name||''}","${tn(r.team)}","${l.type}","${l.from}","${l.to}","${l.days}","${l.backup?rn(l.backup):''}","${l.approver?appNameById(l.approver):''}","${l.status}"\n`});
+  const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);a.download='vista_leave_report.csv';a.click();toast('CSV exported');
+}
+
+/* ── Backup ── */
+function renderBackup(){
+  return`<div class="page-title"><i class="ti ti-database" style="color:var(--violet)"></i>Backup & Restore</div><div class="page-sub">Export all data or restore from a previous backup</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+    <div class="card" style="display:flex;flex-direction:column;gap:10px">
+      <div style="width:40px;height:40px;border-radius:10px;background:var(--violet-bg);color:var(--violet);display:flex;align-items:center;justify-content:center;font-size:18px"><i class="ti ti-download"></i></div>
+      <div style="font-size:13px;font-weight:500;color:var(--navy)">Export backup</div>
+      <p style="font-size:11px;color:var(--text-light)">Download all data as a <strong>.json</strong> file.</p>
+      <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:7px;padding:9px 11px;font-size:11px;color:var(--text-mid)">
+        <div style="display:flex;justify-content:space-between;margin-bottom:3px"><span>Resources</span><span style="font-weight:500;color:var(--navy)">${DB.resources.length}</span></div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:3px"><span>Teams</span><span style="font-weight:500;color:var(--navy)">${DB.teams.length}</span></div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:3px"><span>Approvers</span><span style="font-weight:500;color:var(--navy)">${DB.approvers.length}</span></div>
+        <div style="display:flex;justify-content:space-between"><span>Leave records</span><span style="font-weight:500;color:var(--navy)">${DB.leaves.length}</span></div>
+      </div>
+      <button class="btn violet-btn" onclick="exportBackup()"><i class="ti ti-download"></i> Download backup</button>
+    </div>
+    <div class="card" style="display:flex;flex-direction:column;gap:10px">
+      <div style="width:40px;height:40px;border-radius:10px;background:var(--sky-bg);color:var(--sky);display:flex;align-items:center;justify-content:center;font-size:18px"><i class="ti ti-upload"></i></div>
+      <div style="font-size:13px;font-weight:500;color:var(--navy)">Restore from backup</div>
+      <p style="font-size:11px;color:var(--text-light)">Upload a <strong>.json</strong> backup file. This will <strong>replace all data</strong>.</p>
+      <div style="border:2px dashed var(--border-strong);border-radius:9px;padding:24px 16px;text-align:center;cursor:pointer;background:var(--surface)" onclick="document.getElementById('file-input').click()" ondragover="event.preventDefault();this.style.borderColor='var(--teal)'" ondragleave="this.style.borderColor='var(--border-strong)'" ondrop="handleDrop(event)">
+        <i class="ti ti-file-upload" style="font-size:24px;color:var(--text-light);display:block;margin-bottom:6px"></i><p style="font-size:12px;color:var(--text-light)">Click to select or drag & drop</p><small style="font-size:11px;color:var(--text-light)">.json files only</small>
+      </div>
+    </div>
+  </div>`;
+}
+function exportBackup(){
+  const now=new Date(),ts=now.toISOString().slice(0,19).replace('T','_').replace(/:/g,'-'),filename=`vista_leave_backup_${ts}.json`;
+  const data={exportedAt:now.toISOString(),version:'v16-sheets',resources:DB.resources,teams:DB.teams,approvers:DB.approvers,leaves:DB.leaves};
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;a.click();URL.revokeObjectURL(a.href);toast('Backup downloaded');
+}
+function handleDrop(e){e.preventDefault();const file=e.dataTransfer.files[0];if(file)readBackupFile(file)}
+function handleFileImport(e){const file=e.target.files[0];if(file)readBackupFile(file);e.target.value=''}
+function readBackupFile(file){
+  if(!file.name.endsWith('.json')){toast('Select a .json backup file',false);return}
+  const reader=new FileReader();
+  reader.onload=e=>{try{
+    const data=JSON.parse(e.target.result);
+    if(!data.resources||!data.teams||!data.approvers||!data.leaves){toast('Invalid backup file',false);return}
+    window._pendingRestore=data;
+    const el=document.getElementById('modal-overlay');
+    el.innerHTML=`<div class="modal-box"><div class="modal-icon restore" style="background:var(--sky-bg);color:var(--sky)"><i class="ti ti-upload"></i></div><h3>Restore from backup</h3><p>This will replace all data. Continue?<br><small>Resources: ${data.resources.length} · Teams: ${data.teams.length} · Approvers: ${data.approvers.length} · Leaves: ${data.leaves.length}</small></p><div class="modal-act"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn teal" onclick="confirmRestore()"><i class="ti ti-check"></i> Restore now</button></div></div>`;
+    el.style.display='flex';
+  }catch{toast('Could not read file',false)}};
+  reader.readAsText(file);
+}
+function confirmRestore(){
+  const data=window._pendingRestore;if(!data){closeModal();return}
+  DB.resources=data.resources;DB.teams=data.teams;DB.approvers=data.approvers;DB.leaves=data.leaves;
+  window._pendingRestore=null;closeModal();saveAndRender().then(()=>toast('Data restored'));
+}
+
+init();
+</script>
+</body>
+</html>
