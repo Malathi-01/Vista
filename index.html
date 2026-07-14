@@ -254,34 +254,41 @@ async function fetchFromSheet(){
 }
 
 function mapLeaveForSheet(l){
+  // empName — sourced from All Leave Requests page Employee column (set in submitLeave from employee dropdown)
+  // backupName — sourced from Apply for Leave page Backup person dropdown
+  // approverName — sourced from Pending Approvals page Approver dropdown selection
   const empRes      = DB.resources.find(r=>String(r.id)===String(l.empId))||DB.resources.find(r=>r.name===l.empName)||{};
   const backupRes   = l.backup ? DB.resources.find(r=>String(r.id)===String(l.backup))||{} : {};
   const approverRec = l.approver ? DB.approvers.find(a=>String(a.id)===String(l.approver)) : null;
   const approverRes = approverRec ? DB.resources.find(r=>String(r.id)===String(approverRec.resourceId))||{} : {};
+
+  // Priority: cached name on record first (set at submit/selection time), then live DB lookup
+  const empName      = l.empName      || empRes.name                                          || '';
+  const backupName   = l.backupName   || backupRes.name                                        || '';
+  const approverName = l.approverName || approverRes.name || (approverRec?approverRec.approverName:'') || '';
+
   return {
-    id:           l.id                           || '',
-    empId:        l.empId                        || '',
-    employeeName: empRes.name  || l.empName      || '',
-    role:         empRes.role  || l.empRole       || '',
-    empTeam:      empRes.team  || l.empTeam       || '',
-    type:         l.type                          || '',
-    from:         l.from                          || '',
-    to:           l.to                            || '',
-    days:         l.days                          || 0,
-    backupId:     l.backup                        || '',
-    backupName:   backupRes.name|| l.backupName   || '',
-    reason:       l.reason                        || '',
-    approverId:   l.approver                      || '',
-    approverName: approverRes.name                || '',
-    status:       l.status                        || '',
-    notified:     l.notified                      || false,
-    createdAt:    l.createdAt                     || '',
-    updatedAt:    new Date().toISOString()
+    id:        l.id            || '',
+    empName,                            // = Employee field in All Leave Requests page
+    role:      empRes.role     || l.empRole  || '',
+    team:      empRes.team     || l.empTeam  || '',
+    type:      l.type          || '',
+    from:      l.from          || '',
+    to:        l.to            || '',
+    days:      l.days          || 0,
+    backup:    backupName,              // = Backup column in All Leave Requests page
+    reason:    l.reason        || '',
+    approver:  approverName,            // = Approver column in All Leave Requests page
+    status:    l.status        || '',
+    createdAt: l.createdAt     || '',
+    updatedAt: new Date().toISOString()
   };
 }
 function mapApproverForSheet(a){
+  // approverName = the Name shown in Settings → Approvers module (resolved from DB.resources via resourceId)
   const r = DB.resources.find(x=>String(x.id)===String(a.resourceId))||{};
-  return { id:a.id, resourceId:a.resourceId, approverName:r.name||'', designation:a.designation };
+  const approverName = r.name || a.approverName || '';
+  return { id:a.id, resourceId:a.resourceId, approverName, designation:a.designation };
 }
 function mapTeamForSheet(t){
   const lead = t.lead ? (DB.resources.find(r=>String(r.id)===String(t.lead))?.name || t.lead) : '';
@@ -391,28 +398,65 @@ function migrate(data){
     return val;
   }
 
-  /* Fix approvers resourceId */
-  data.approvers = apps.map(a=>({...a, resourceId: resolveResId(a.resourceId)}));
+  /* Fix approvers resourceId — if sheet only has approverName, rebuild resourceId from it */
+  data.approvers = apps.map(a=>{
+    let rid = resolveResId(a.resourceId);
+    // If resourceId didn't resolve, try matching by approverName stored in the sheet
+    if(!rid && a.approverName){
+      const byName = res.find(r=>r.name===a.approverName);
+      if(byName) rid = byName.id;
+    }
+    return {...a, resourceId: rid||a.resourceId};
+  });
 
   /* Fix leaves — resolve IDs AND populate stored name fields */
   data.leaves = (data.leaves||[])
     .filter(l => !(l.empId==='r_rama' && l.type==='Planned Leave' && l.from==='2026-07-16'))
     .map(l => {
-      const empId    = resolveResId(l.empId);
-      const backup   = l.backup  ? resolveResId(l.backup)   : l.backup;
-      const approver = l.approver? resolveAppId(l.approver) : l.approver;
-      const empRes   = res.find(r=>r.id===empId)||res.find(r=>r.name===l.empId)||res.find(r=>r.name===l.empName)||{};
-      const bkpRes   = backup ? res.find(r=>r.id===backup)||res.find(r=>r.name===l.backup)||{} : {};
+      // When reading back from sheet: empId may be empty but empName is set — rebuild empId
+      let rawEmpId = l.empId || '';
+      if(!rawEmpId && l.empName){
+        const byName = res.find(r=>r.name===l.empName);
+        if(byName) rawEmpId = byName.id;
+      }
+      const empId    = resolveResId(rawEmpId) || rawEmpId;
+
+      // backup: sheet stores backupName in 'backup' column — try to resolve back to an id
+      let rawBackup = l.backup || '';
+      // if it looks like a name (not a number), resolve to resource id
+      if(rawBackup && isNaN(parseInt(rawBackup,10))){
+        const byName = res.find(r=>r.name===rawBackup);
+        if(byName) rawBackup = byName.id;
+      }
+      const backup = rawBackup ? resolveResId(rawBackup)||rawBackup : '';
+
+      // approver: sheet stores approverName in 'approver' column — resolve back to approver id
+      let rawApprover = l.approver || '';
+      let resolvedApproverId = '';
+      if(rawApprover && isNaN(parseInt(rawApprover,10))){
+        // it's a name — find the approver record by name
+        const appRec = apps.find(a=>{
+          const r2=res.find(r=>String(r.id)===String(a.resourceId));
+          return r2&&r2.name===rawApprover;
+        });
+        if(appRec) resolvedApproverId = String(appRec.id);
+      } else {
+        resolvedApproverId = resolveAppId(rawApprover)||rawApprover;
+      }
+
+      const empRes   = res.find(r=>String(r.id)===String(empId))||res.find(r=>r.name===l.empName)||{};
+      const bkpRes   = backup ? res.find(r=>String(r.id)===String(backup))||res.find(r=>r.name===l.backup)||{} : {};
       return {
         ...l,
         type:       l.type==='Adhoc Leave'?'Unplanned Leave':l.type,
-        empId,
-        empName:    empRes.name  || l.empName || '',
+        empId:      empId || String(l.empId||''),
+        empName:    l.empName  || empRes.name  || '',
         empTeam:    empRes.team  || l.empTeam || '',
         empRole:    empRes.role  || l.empRole  || '',
-        backup,
+        backup:     backup,
         backupName: l.backupName || bkpRes.name || '',
-        approver
+        approver:   resolvedApproverId || String(l.approver||''),
+        approverName: l.approverName || rawApprover || ''
       };
     });
 
@@ -542,7 +586,7 @@ function go(p){PAGE=p;render()}
 
 /* ── Leave table ── */
 function canDeleteLeave(l){
-  const isMine=CU.id&&l.empId===CU.id;
+  const isMine=CU.id&&String(l.empId)===String(CU.id);
   if(CU.role==='approver') return l.status==='Pending'||l.status==='Approved';
   return isMine&&l.status==='Pending';
 }
@@ -677,8 +721,8 @@ function submitLeave(){
   saveAndRender().then(()=>toast('Leave request submitted'));
 }
 function deleteLeave(id){
-  const l=DB.leaves.find(x=>x.id===id);if(!l)return;
-  const isMine=l.empId===CU.id;const isAp=CU.role==='approver';
+  const l=DB.leaves.find(x=>String(x.id)===String(id));if(!l)return;
+  const isMine=String(l.empId)===String(CU.id);const isAp=CU.role==='approver';
   if(!isAp&&!isMine){toast('You can only delete your own requests',false);return}
   if(!isAp&&l.status!=='Pending'){toast('Cannot delete — leave is '+l.status,false);return}
   if(isAp&&l.status==='Rejected'){toast('Cannot delete rejected leaves',false);return}
@@ -686,7 +730,7 @@ function deleteLeave(id){
   modal('del','trash','Delete leave request',`${warn}Delete <strong>${rn(l.empId)}'s</strong> ${l.type}<br>(${l.from} → ${l.to}, ${l.days} day(s))? Cannot be undone.`,
     `<button class="btn" onclick="closeModal()">Cancel</button><button class="btn danger" onclick="confirmDelLeave('${id}')"><i class="ti ti-trash"></i> Delete</button>`);
 }
-function confirmDelLeave(id){closeModal();DB.leaves=DB.leaves.filter(l=>l.id!==id);saveAndRender().then(()=>toast('Leave deleted'))}
+function confirmDelLeave(id){closeModal();DB.leaves=DB.leaves.filter(l=>String(l.id)!==String(id));saveAndRender().then(()=>toast('Leave deleted'))}
 
 /* ── Pending Approvals ── */
 function renderPending(){
@@ -705,7 +749,7 @@ function renderPending(){
         <td>${l.from}</td><td>${l.to}</td><td style="text-align:center;font-weight:500">${l.days}</td>
         <td style="font-size:11px">${backupName}</td>
         <td><select id="app-sel-${l.id}" style="font-size:11px;padding:4px 6px;border:0.5px solid ${l.approver?'var(--border)':'var(--rose)'};border-radius:var(--radius);background:var(--surface);color:var(--text);min-width:120px" onchange="saveApproverSelection('${l.id}',this.value)">
-          <option value="">— select —</option>${approvers.map(a=>`<option value="${a.id}" ${l.approver===a.id?'selected':''}>${rn(a.resourceId)}</option>`).join('')}
+          <option value="">— select —</option>${approvers.map(a=>{const r=DB.resources.find(x=>String(x.id)===String(a.resourceId))||{};const dispName=r.name||a.approverName||'—';return`<option value="${a.id}" ${String(l.approver)===String(a.id)?'selected':''}>${dispName}</option>`}).join('')}
         </select>${!l.approver?`<div style="font-size:10px;color:var(--rose);margin-top:2px">Required</div>`:''}</td>
         <td style="color:var(--text-mid);font-size:11px">${l.reason||'—'}</td>
         <td><div class="bg">
@@ -716,7 +760,20 @@ function renderPending(){
     </table></div>`}`;
 }
 function saveApproverSelection(lid,aid){
-  const l=DB.leaves.find(x=>x.id===lid);if(l){l.approver=aid;saveToSheet('Leaves',DB.leaves)}
+  const l=DB.leaves.find(x=>String(x.id)===String(lid));
+  if(l){
+    l.approver=aid;
+    // Cache the approver name on the leave record from the Pending Approvals dropdown selection
+    if(aid){
+      const approverRec=DB.approvers.find(a=>String(a.id)===String(aid));
+      const approverRes=approverRec?DB.resources.find(r=>String(r.id)===String(approverRec.resourceId)):null;
+      // Name = from Settings Approvers module → resolves via resourceId → DB.resources
+      l.approverName=approverRes?approverRes.name:(approverRec?approverRec.approverName:'');
+    } else {
+      l.approverName='';
+    }
+    saveToSheet('Leaves',DB.leaves);
+  }
   const ab=document.querySelector(`button[onclick="promptApprove('${lid}','Approved')"]`);
   const rb=document.querySelector(`button[onclick="promptApprove('${lid}','Rejected')"]`);
   const sel=document.getElementById(`app-sel-${lid}`);const hint=sel?.nextElementSibling;
@@ -724,19 +781,31 @@ function saveApproverSelection(lid,aid){
   else{if(ab)ab.disabled=true;if(rb)rb.disabled=true;if(sel)sel.style.borderColor='var(--rose)';if(hint)hint.style.display='block';}
 }
 function promptApprove(id,status){
-  const l=DB.leaves.find(x=>x.id===id);if(!l)return;
+  const l=DB.leaves.find(x=>String(x.id)===String(id));if(!l)return;
   if(!l.approver){toast('Assign an approver first',false);return}
-  const r=DB.resources.find(x=>x.id===l.empId)||{};const isApprove=status==='Approved';
+  const r=DB.resources.find(x=>String(x.id)===String(l.empId))||{};
+  const isApprove=status==='Approved';
+  const appRec=DB.approvers.find(a=>String(a.id)===String(l.approver));
+  const appRes=appRec?DB.resources.find(r2=>String(r2.id)===String(appRec.resourceId)):null;
+  const appDisplay=appRes?appRes.name:(appRec?appRec.approverName:(l.approverName||'—'));
   modal(isApprove?'approve':'reject-ic',isApprove?'check':'x',
     (isApprove?'Approve':'Reject')+' leave request',
-    `<strong>${r.name||'Employee'}</strong> — ${l.type}<br>${l.from} → ${l.to} (${l.days} day(s))<br>Approver: <strong>${appNameById(l.approver)}</strong>`,
+    `<strong>${r.name||l.empName||'Employee'}</strong> — ${l.type}<br>${l.from} &rarr; ${l.to} (${l.days} day(s))<br>Approver: <strong>${appDisplay}</strong>`,
     `<button class="btn" onclick="closeModal()">Cancel</button><button class="btn ${isApprove?'success':'reject'}" onclick="updLeave('${id}','${status}')"><i class="ti ti-${isApprove?'check':'x'}"></i> Confirm ${status}</button>`);
 }
 function updLeave(id,status){
-  const l=DB.leaves.find(x=>x.id===id);if(!l)return;
+  const l=DB.leaves.find(x=>String(x.id)===String(id));if(!l)return;
   if(!l.approver){toast('Assign an approver first',false);return}
-  l.status=status;l.notified=true;l.updatedAt=new Date().toISOString();
-  closeModal();saveAndRender().then(()=>toast(`Leave marked as ${status}`));
+  // Re-resolve and cache approverName at the moment of approval/rejection
+  // so All Leave Requests page and Google Sheet both show the correct name
+  const appRec=DB.approvers.find(a=>String(a.id)===String(l.approver));
+  const appRes=appRec?DB.resources.find(r=>String(r.id)===String(appRec.resourceId)):null;
+  l.approverName=appRes?appRes.name:(appRec?appRec.approverName:(l.approverName||''));
+  l.status=status;
+  l.notified=true;
+  l.updatedAt=new Date().toISOString();
+  closeModal();
+  saveAndRender().then(()=>toast(`Leave marked as ${status}`));
 }
 
 /* ── Settings ── */
@@ -831,15 +900,15 @@ function delTeam(id,name){
   modal('del','trash','Delete team',`Delete team <strong>${name}</strong>? Cannot be undone.`,
     `<button class="btn" onclick="closeModal()">Cancel</button><button class="btn danger" onclick="confirmDelTeam('${id}')"><i class="ti ti-trash"></i> Delete</button>`);
 }
-function confirmDelTeam(id){closeModal();DB.teams=DB.teams.filter(t=>t.id!==id);saveAndRender().then(()=>toast('Team deleted'))}
+function confirmDelTeam(id){closeModal();DB.teams=DB.teams.filter(t=>String(t.id)!==String(id));saveAndRender().then(()=>toast('Team deleted'))}
 function renderAppTab(){
   const approvers=DB.approvers;
   return`<div class="card-hdr" style="margin-bottom:10px"><div class="card-ttl" style="font-size:13px"><i class="ti ti-user-check" style="color:var(--navy)"></i>Approvers <span class="pill" style="background:var(--sky-bg);color:var(--sky)">${approvers.length}</span></div><button class="btn teal sm" onclick="openAppForm()"><i class="ti ti-plus"></i> Add</button></div>
   <div id="app-form"></div>
   <div class="tw">${approvers.length===0?`<div class="empty"><i class="ti ti-user-check"></i>No approvers yet.</div>`:
   `<table><tr><th>Name</th><th>Designation</th><th>Actions</th></tr>
-  ${approvers.map(a=>{const r=DB.resources.find(x=>String(x.id)===String(a.resourceId))||{};return`<tr>
-    <td style="font-weight:500;color:var(--navy)">${r.name||a.approverName||'—'}</td>
+  ${approvers.map(a=>{const r=DB.resources.find(x=>String(x.id)===String(a.resourceId))||{};const approverName=r.name||a.approverName||'—';return`<tr>
+    <td style="font-weight:500;color:var(--navy)">${approverName}</td>
     <td><span class="pill" style="background:var(--violet-bg);color:var(--violet)">${a.designation}</span></td>
     <td><div class="bg"><button class="btn sm edit-btn" onclick="openAppForm('${a.id}')"><i class="ti ti-edit"></i> Edit</button><button class="btn sm danger" onclick="delApp('${a.id}','${(r.name||'approver').replace(/'/g,"\\'")}')"><i class="ti ti-trash"></i></button></div></td>
   </tr>`}).join('')}</table>`}</div>`;
