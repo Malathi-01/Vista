@@ -136,7 +136,7 @@ tr:hover td{background:#FAFCFF}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 </style>
 </head>
-<body>
+<body><div id="_dbg" style="position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#7dd3fc;font-size:10px;padding:4px 8px;z-index:9999;word-break:break-all"></div>
 
 <div id="root"></div>
 <div id="modal-overlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(15,23,42,0.6);z-index:9000;align-items:center;justify-content:center"></div>
@@ -179,13 +179,44 @@ let CU = null, PAGE = 'apply', STAB = 'resources', RVIEW = 'employee';
 let lastSync = null, isSaving = false;
 
 // ── Utility ──
-const tn  = id => id ? (DB.teams.find(t=>t.id===id)||{name:'—'}).name : '—';
-const rn  = id => (DB.resources.find(r=>r.id===id)||{name:'—'}).name;
+const tn = val => {
+  if(!val && val!==0) return '—';
+  const s = String(val);
+  // val is usually a team name string; also handle numeric id fallback
+  const byName = DB.teams.find(t=>t.name===s);
+  if(byName) return byName.name;
+  const byId = DB.teams.find(t=>String(t.id)===s);
+  if(byId) return byId.name;
+  return s||'—';
+};
+const rn = id => {
+  if(!id && id!==0) return '—';
+  const sid = String(id);
+  const byId = DB.resources.find(r=>String(r.id)===sid);
+  if(byId) return byId.name;
+  const byName = DB.resources.find(r=>r.name===sid);
+  if(byName) return byName.name;
+  const idx = parseInt(sid,10);
+  if(!isNaN(idx) && idx>=1 && idx<=DB.resources.length) return DB.resources[idx-1].name;
+  return sid;
+};
 const isApp = rid => DB.approvers.some(a=>a.resourceId===rid);
-const appNameById = id => { const a=DB.approvers.find(x=>x.id===id); return a?rn(a.resourceId):'—' };
+const appNameById = id => {
+  if(!id && id!==0) return '—';
+  const sid = String(id);
+  const byId = DB.approvers.find(a=>String(a.id)===sid);
+  if(byId) return rn(byId.resourceId);
+  const idx = parseInt(sid,10);
+  if(!isNaN(idx) && idx>=1 && idx<=DB.approvers.length) return rn(DB.approvers[idx-1].resourceId);
+  return rn(id);
+};
 const ac  = n => { const c=['#0D9488','#7C3AED','#D97706','#0284C7','#E11D48','#16A34A','#1E3A5F']; let h=0; for(let i=0;i<n.length;i++) h=(h+n.charCodeAt(i))%c.length; return c[h] };
 const ini = n => n.trim().split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase();
-const uid = () => 'x'+Date.now()+Math.random().toString(36).slice(2,5);
+// Returns next incremental integer ID for a given DB table array
+function nextId(arr){
+  const max = arr.reduce((m,r)=>{ const n=parseInt(r.id,10); return(!isNaN(n)&&n>m)?n:m; }, 0);
+  return max + 1;
+}
 function calcDays(f,t){if(!f||!t)return 0;let d=0,c=new Date(f),e=new Date(t);if(c>e)return 0;while(c<=e){const dw=c.getDay();if(dw&&dw!==6)d++;c.setDate(c.getDate()+1)}return d}
 
 // ── Toast ──
@@ -210,33 +241,88 @@ async function fetchFromSheet(){
   try{
     const res = await fetch(SCRIPT_URL + '?t=' + Date.now());
     const json = await res.json();
-    if(json.ok) return json.data;
+    if(json.ok){
+      const d=json.data;
+      const r0=d.resources&&d.resources[0]?JSON.stringify(d.resources[0]):'none';
+      const t0=d.teams&&d.teams[0]?JSON.stringify(d.teams[0]):'none';
+      document.getElementById('_dbg')&&(document.getElementById('_dbg').textContent='RES[0]:'+r0+' | TEAM[0]:'+t0);
+      return d;
+    }
     console.error('Sheet read error:', json.error);
     return null;
   }catch(e){console.error('Fetch error:',e);return null}
 }
 
+function mapLeaveForSheet(l){
+  const empRes      = DB.resources.find(r=>String(r.id)===String(l.empId))||DB.resources.find(r=>r.name===l.empName)||{};
+  const backupRes   = l.backup ? DB.resources.find(r=>String(r.id)===String(l.backup))||{} : {};
+  const approverRec = l.approver ? DB.approvers.find(a=>String(a.id)===String(l.approver)) : null;
+  const approverRes = approverRec ? DB.resources.find(r=>String(r.id)===String(approverRec.resourceId))||{} : {};
+  return {
+    id:           l.id                           || '',
+    empId:        l.empId                        || '',
+    employeeName: empRes.name  || l.empName      || '',
+    role:         empRes.role  || l.empRole       || '',
+    empTeam:      empRes.team  || l.empTeam       || '',
+    type:         l.type                          || '',
+    from:         l.from                          || '',
+    to:           l.to                            || '',
+    days:         l.days                          || 0,
+    backupId:     l.backup                        || '',
+    backupName:   backupRes.name|| l.backupName   || '',
+    reason:       l.reason                        || '',
+    approverId:   l.approver                      || '',
+    approverName: approverRes.name                || '',
+    status:       l.status                        || '',
+    notified:     l.notified                      || false,
+    createdAt:    l.createdAt                     || '',
+    updatedAt:    new Date().toISOString()
+  };
+}
+function mapApproverForSheet(a){
+  const r = DB.resources.find(x=>String(x.id)===String(a.resourceId))||{};
+  return { id:a.id, resourceId:a.resourceId, approverName:r.name||'', designation:a.designation };
+}
+function mapTeamForSheet(t){
+  const lead = t.lead ? (DB.resources.find(r=>String(r.id)===String(t.lead))?.name || t.lead) : '';
+  return { id:t.id, name:t.name, desc:t.desc||'', lead, backup_log:undefined };
+}
 async function saveToSheet(table, rows){
   if(!IS_CONFIGURED) return;
   try{
+    let mapped = rows;
+    if(table==='Leaves')  mapped = rows.map(mapLeaveForSheet);
+    if(table==='Teams')     mapped = rows.map(mapTeamForSheet);
+    if(table==='Approvers') mapped = rows.map(mapApproverForSheet);
+    const payload = JSON.stringify({action:'replace', table, rows: mapped});
+    console.log('[saveToSheet]', table, rows.length, 'rows →', payload.slice(0,200));
+    // Apps Script POST must use no-cors + text/plain to avoid CORS preflight block
     await fetch(SCRIPT_URL, {
       method:'POST',
-      body: JSON.stringify({action:'replace', table, rows}),
-      headers:{'Content-Type':'application/json'}
+      mode:'no-cors',
+      body: payload,
+      headers:{'Content-Type':'text/plain'}
     });
-  }catch(e){console.error('Save error:',e)}
+    console.log('[saveToSheet] POST sent OK:', table);
+  }catch(e){
+    console.error('[saveToSheet] FAILED:', table, e);
+    toast('Sheet sync failed — check console',false);
+  }
 }
 
 async function saveAllTables(){
   if(!IS_CONFIGURED) return;
   isSaving=true;
-  await Promise.all([
-    saveToSheet('Resources', DB.resources),
-    saveToSheet('Teams',     DB.teams),
-    saveToSheet('Approvers', DB.approvers),
-    saveToSheet('Leaves',    DB.leaves)
-  ]);
-  isSaving=false;
+  try{
+    await Promise.all([
+      saveToSheet('Resources', DB.resources),
+      saveToSheet('Teams',     DB.teams),
+      saveToSheet('Approvers', DB.approvers),
+      saveToSheet('Leaves',    DB.leaves)
+    ]);
+  }finally{
+    isSaving=false;
+  }
 }
 
 // ── Init ──
@@ -263,27 +349,100 @@ async function init(){
 
 function migrate(data){
   if(!data) return null;
+
+  /* ── Ensure every row has a clean incremental numeric ID ── */
+  function assignIds(arr){
+    arr.forEach(row => {
+      const n = parseInt(row.id, 10);
+      if(!row.id || row.id==='' || isNaN(n) || n<=0) row.id = null; // mark for assignment
+    });
+    let max = arr.reduce((m,r)=>{ const n=parseInt(r.id,10); return(!isNaN(n)&&n>m)?n:m; }, 0);
+    arr.forEach(row => { if(row.id===null){ max++; row.id=max; } else row.id=parseInt(row.id,10); });
+  }
+  assignIds(data.resources||[]);
+  assignIds(data.teams||[]);
+  assignIds(data.approvers||[]);
+  assignIds(data.leaves||[]);
+  // Strip time portion from onboarded dates
+  (data.resources||[]).forEach(r => {
+    if(r.onboarded) r.onboarded = String(r.onboarded).slice(0,10);
+  });
+
+  const res  = data.resources  || [];
+  const apps = data.approvers  || [];
+
+  /* Resolve a value that might be a proper id, a name, or a 1-based Sheets row number */
+  function resolveResId(val){
+    if(!val && val!==0) return val;
+    const s = String(val);
+    if(res.find(r=>String(r.id)===s))  return s;                      // correct id
+    const byName = res.find(r=>r.name===s);
+    if(byName) return byName.id;                                       // stored as name
+    const idx = parseInt(s,10);
+    if(!isNaN(idx) && idx>=1 && idx<=res.length) return res[idx-1].id; // row number
+    return val;
+  }
+  function resolveAppId(val){
+    if(!val && val!==0) return val;
+    const s = String(val);
+    if(apps.find(a=>String(a.id)===s)) return s;
+    const idx = parseInt(s,10);
+    if(!isNaN(idx) && idx>=1 && idx<=apps.length) return apps[idx-1].id;
+    return val;
+  }
+
+  /* Fix approvers resourceId */
+  data.approvers = apps.map(a=>({...a, resourceId: resolveResId(a.resourceId)}));
+
+  /* Fix leaves — resolve IDs AND populate stored name fields */
   data.leaves = (data.leaves||[])
     .filter(l => !(l.empId==='r_rama' && l.type==='Planned Leave' && l.from==='2026-07-16'))
-    .map(l => ({...l, type: l.type==='Adhoc Leave'?'Unplanned Leave':l.type}));
+    .map(l => {
+      const empId    = resolveResId(l.empId);
+      const backup   = l.backup  ? resolveResId(l.backup)   : l.backup;
+      const approver = l.approver? resolveAppId(l.approver) : l.approver;
+      const empRes   = res.find(r=>r.id===empId)||res.find(r=>r.name===l.empId)||res.find(r=>r.name===l.empName)||{};
+      const bkpRes   = backup ? res.find(r=>r.id===backup)||res.find(r=>r.name===l.backup)||{} : {};
+      return {
+        ...l,
+        type:       l.type==='Adhoc Leave'?'Unplanned Leave':l.type,
+        empId,
+        empName:    empRes.name  || l.empName || '',
+        empTeam:    empRes.team  || l.empTeam || '',
+        empRole:    empRes.role  || l.empRole  || '',
+        backup,
+        backupName: l.backupName || bkpRes.name || '',
+        approver
+      };
+    });
+
+  /* Keep resource.team as team name string (what the sheet stores).
+     Auto-build DB.teams from any team names in resources not already in teams table. */
+  const existingTeams = data.teams || [];
+  const teamNamesInRes = [...new Set((data.resources||[]).map(r=>r.team).filter(Boolean))];
+  teamNamesInRes.forEach(teamVal => {
+    // teamVal might be a name ("Testing Team") or a numeric id — resolve to name
+    const byId   = existingTeams.find(t=>String(t.id)===String(teamVal));
+    const byName = existingTeams.find(t=>t.name===teamVal);
+    const found  = byId || byName;
+    if(!found){
+      existingTeams.push({id:nextId(existingTeams), name:String(teamVal), desc:'', lead:''});
+    }
+  });
+  // Normalise: if r.team is a numeric id, convert to team name
+  (data.resources||[]).forEach(r => {
+    if(r.team){
+      const byId = existingTeams.find(t=>String(t.id)===String(r.team));
+      if(byId) r.team = byId.name;  // store name, not id
+    }
+  });
+  data.teams = existingTeams;
   if(!data.backup_log) data.backup_log = [];
   return data;
 }
 
 // ── Manual sync from Sheet ──
-async function refresh(){
-  const btn=document.getElementById('refresh-btn');
-  if(btn){btn.disabled=true;btn.innerHTML=`<i class="ti ti-loader" style="animation:spin 1s linear infinite"></i> Syncing...`}
-  if(IS_CONFIGURED){
-    const remote = await fetchFromSheet();
-    if(remote && remote.resources) DB = migrate(remote);
-    toast('Synced from Google Sheets');
-  } else {
-    toast('Configure SCRIPT_URL to enable sync',false);
-  }
-  lastSync=new Date();
-  render();
-}
+
 
 // ── Save + render ──
 async function saveAndRender(){
@@ -293,10 +452,8 @@ async function saveAndRender(){
 }
 
 function syncBar(){
-  const dot = IS_CONFIGURED
-    ? `<div class="sync-dot" style="background:var(--green);animation:pulse 2s infinite"></div><span>Google Sheets · Last synced: ${lastSync?lastSync.toLocaleTimeString():'—'}</span>`
-    : `<div class="sync-dot" style="background:var(--amber)"></div><span style="color:var(--amber)">Not connected to Google Sheets — data is local only</span>`;
-  return`<div class="sync-bar">${dot}<button id="refresh-btn" class="btn sm" style="margin-left:auto" onclick="refresh()"><i class="ti ti-refresh"></i> Sync now</button></div>`;
+  if(!IS_CONFIGURED) return '';
+  return`<div class="sync-bar"><div class="sync-dot" style="background:var(--green);animation:pulse 2s infinite"></div><span>Google Sheets · Last synced: ${lastSync?lastSync.toLocaleTimeString():'—'}</span></div>`;
 }
 
 function setupBanner(){
@@ -395,20 +552,27 @@ function renderLeaveTableFull(leaves,opts={}){
   return`
   ${myEmpId?`<div class="legend"><span style="display:flex;align-items:center;gap:4px"><div class="legend-dot" style="background:#FEF3C7;border:1px solid #FDE68A"></div>Your requests</span><span style="display:flex;align-items:center;gap:4px"><div class="legend-dot" style="background:#F8FAFC;border:0.5px solid var(--border)"></div>Team members</span></div>`:''}
   <div class="tw"><table>
-    <tr>${showEmployee?'<th>Employee</th>':''}<th>Type</th><th>From</th><th>To</th><th>Days</th><th>Backup</th><th>Approver</th><th>Status</th>${showDelete?'<th></th>':''}</tr>
+    <tr>${showEmployee?'<th>Employee</th><th>Role</th>':''}<th>Type</th><th>From</th><th>To</th><th>Days</th><th>Backup</th><th>Approver</th><th>Status</th>${showDelete?'<th></th>':''}</tr>
     ${leaves.map(l=>{
       const isMine=myEmpId&&l.empId===myEmpId;
       const isNew=l.notified&&l.empId===myEmpId;
       const cd=showDelete&&canDeleteLeave(l);
+      const empRes=DB.resources.find(r=>r.id===l.empId)
+              ||DB.resources.find(r=>r.name===l.empId)
+              ||DB.resources.find(r=>r.name===l.empName)
+              ||{};
+      const empName=empRes.name||l.empName||rn(l.empId);
+      const empTeam=empRes.team||l.empTeam||'';
+      const empRole=empRes.role||l.empRole||'—';
       return`<tr class="${isMine?'my-row':''}">
         ${showEmployee?`<td><div style="display:flex;align-items:center;gap:6px">
-          <div style="width:22px;height:22px;border-radius:50%;background:${ac(rn(l.empId))};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:500;color:#fff;flex-shrink:0">${ini(rn(l.empId))}</div>
-          <span style="font-weight:${isMine?'500':'400'};color:${isMine?'var(--navy)':'var(--text)'}">${rn(l.empId)}${isMine?' <span style="font-size:10px;color:var(--amber)">(you)</span>':''}</span>
-        </div></td>`:''}
+          <div style="width:22px;height:22px;border-radius:50%;background:${ac(empName)};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:500;color:#fff;flex-shrink:0">${ini(empName)}</div>
+          <span style="font-weight:${isMine?'500':'400'};color:${isMine?'var(--navy)':'var(--text)'}">${empName}${isMine?' <span style="font-size:10px;color:var(--amber)">(you)</span>':''}</span>
+        </div></td><td style="font-size:11px;color:var(--text-mid)">${empRole}</td>`:''}
         <td><span class="pill" style="background:var(--violet-bg);color:var(--violet)">${l.type}</span></td>
         <td>${l.from}</td><td>${l.to}</td>
         <td style="text-align:center;font-weight:500">${l.days}</td>
-        <td style="font-size:11px">${l.backup?rn(l.backup):'—'}</td>
+        <td style="font-size:11px">${l.backup?(l.backupName||rn(l.backup)):'—'}</td>
         <td style="font-size:11px;color:var(--text-mid)">${l.approver?appNameById(l.approver):'—'}</td>
         <td><span class="badge ${l.status.toLowerCase()}">${l.status}</span>${isNew?`<span style="font-size:10px;color:var(--sky);margin-left:3px">● updated</span>`:''}</td>
         ${showDelete?`<td><button class="btn sm danger" onclick="deleteLeave('${l.id}')" ${cd?'':'disabled'}><i class="ti ti-trash"></i></button></td>`:''}
@@ -494,7 +658,7 @@ function updateBackupList(){
   const backupEl=document.getElementById('lv-backup');if(!backupEl)return;
   const allActive=DB.resources.filter(r=>r.status==='Active');
   const empRes=allActive.find(r=>r.id===empId);const empTeam=empRes?.team||'';
-  const options=empTeam?allActive.filter(r=>r.team===empTeam&&r.id!==empId):allActive.filter(r=>r.id!==empId);
+  const options=empTeam?allActive.filter(r=>r.team===empTeam&&r.id!==empId):allActive.filter(r=>r.id!==empId); // empTeam is team name
   backupEl.innerHTML=`<option value="">Select backup (optional)</option>${options.map(r=>`<option value="${r.id}">${r.name}</option>`).join('')}`;
 }
 function recalc(){const f=document.getElementById('lv-from')?.value,t=document.getElementById('lv-to')?.value;const el=document.getElementById('lv-days');if(el){const d=calcDays(f,t);el.value=d>0?d+' day(s)':''}}
@@ -509,7 +673,7 @@ function submitLeave(){
   if(new Date(to)<new Date(from)){toast('To Date must be after From Date',false);return}
   const empRes=DB.resources.find(r=>r.id===empId)||{};
   const backupRes=backup?DB.resources.find(r=>r.id===backup):null;
-  DB.leaves.push({id:uid(),empId,empName:empRes.name||'',empTeam:empRes.team||'',type,from,to,days:calcDays(from,to),backup,backupName:backupRes?backupRes.name:'',reason,approver:'',status:'Pending',notified:false,createdAt:new Date().toISOString()});
+  DB.leaves.push({id:nextId(DB.leaves),empId,empName:empRes.name||'',empTeam:empRes.team||'',empRole:empRes.role||'',type,from,to,days:calcDays(from,to),backup,backupName:backupRes?backupRes.name:'',reason,approver:'',status:'Pending',notified:false,createdAt:new Date().toISOString()});
   saveAndRender().then(()=>toast('Leave request submitted'));
 }
 function deleteLeave(id){
@@ -534,10 +698,10 @@ function renderPending(){
   ${pending.length===0
     ?`<div class="card"><div class="empty"><i class="ti ti-checks"></i>All caught up — no pending requests.</div></div>`
     :`<div class="tw" style="margin-bottom:12px"><table>
-      <tr><th>Employee</th><th>Team</th><th>Type</th><th>From</th><th>To</th><th>Days</th><th>Backup</th><th>Approver *</th><th>Reason</th><th>Action</th></tr>
-      ${pending.map(l=>{const r=DB.resources.find(x=>x.id===l.empId)||{};const empName=r.name||l.empName||l.empId||'—';const empTeam=r.team||l.empTeam||'';const backupRes=l.backup?DB.resources.find(x=>x.id===l.backup):null;const backupName=backupRes?backupRes.name:(l.backupName||'—');return`<tr>
+      <tr><th>Employee</th><th>Role</th><th>Type</th><th>From</th><th>To</th><th>Days</th><th>Backup</th><th>Approver *</th><th>Reason</th><th>Action</th></tr>
+      ${pending.map(l=>{const empName=l.empName||rn(l.empId);const _er=DB.resources.find(r=>String(r.id)===String(l.empId))||DB.resources.find(r=>r.name===l.empId)||DB.resources.find(r=>r.name===empName)||{};const empTeam=_er.team||l.empTeam||'';const backupName=l.backupName||(l.backup?rn(l.backup):'—');return`<tr>
         <td><div style="display:flex;align-items:center;gap:6px"><div style="width:24px;height:24px;border-radius:50%;background:${ac(empName)};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:500;color:#fff">${ini(empName)}</div><span style="font-weight:500;color:var(--navy)">${empName}</span></div></td>
-        <td>${tn(empTeam)||'—'}</td><td><span class="pill" style="background:var(--violet-bg);color:var(--violet)">${l.type}</span></td>
+        <td style="font-size:11px;color:var(--text-mid)">${_er.role||l.empRole||'—'}</td><td><span class="pill" style="background:var(--violet-bg);color:var(--violet)">${l.type}</span></td>
         <td>${l.from}</td><td>${l.to}</td><td style="text-align:center;font-weight:500">${l.days}</td>
         <td style="font-size:11px">${backupName}</td>
         <td><select id="app-sel-${l.id}" style="font-size:11px;padding:4px 6px;border:0.5px solid ${l.approver?'var(--border)':'var(--rose)'};border-radius:var(--radius);background:var(--surface);color:var(--text);min-width:120px" onchange="saveApproverSelection('${l.id}',this.value)">
@@ -600,37 +764,37 @@ function renderResTab(){
   </table>`}</div>`;
 }
 function openResForm(id){
-  const teams=DB.teams;const r=id?DB.resources.find(x=>x.id===id):null;
+  const teams=DB.teams;const r=id?DB.resources.find(x=>String(x.id)===String(id)):null;
   document.getElementById('res-form').innerHTML=`<div class="card hc" style="margin-bottom:12px"><div class="card-ttl" style="margin-bottom:10px"><i class="ti ${r?'ti-edit':'ti-user-plus'}" style="color:var(--teal)"></i>${r?'Edit resource':'Add resource'}</div>
   <div class="form-row"><div class="fg"><label>Full name *</label><input type="text" id="rn-name" value="${r?r.name.replace(/"/g,'&quot;'):''}" placeholder="Full name"></div><div class="fg"><label>Role</label><input type="text" id="rn-role" value="${r?(r.role||'').replace(/"/g,'&quot;'):''}" placeholder="e.g. QA Engineer"></div></div>
-  <div class="form-row"><div class="fg"><label>Team</label><select id="rn-team"><option value="">No team (optional)</option>${teams.map(t=>`<option value="${t.id}" ${r&&r.team===t.id?'selected':''}>${t.name}</option>`).join('')}</select></div><div class="fg"><label>Onboarded date *</label><input type="date" id="rn-ob" value="${r?r.onboarded:''}"></div></div>
+  <div class="form-row"><div class="fg"><label>Team</label><select id="rn-team"><option value="">No team (optional)</option>${teams.map(t=>`<option value="${t.name}" ${r&&r.team===t.name?'selected':''}>${t.name}</option>`).join('')}</select></div><div class="fg"><label>Onboarded date *</label><input type="date" id="rn-ob" value="${r?r.onboarded:''}"></div></div>
   <div style="display:flex;gap:8px"><button class="btn teal" onclick="saveRes('${id||''}')"><i class="ti ti-check"></i> ${r?'Update':'Save'}</button><button class="btn" onclick="document.getElementById('res-form').innerHTML=''"><i class="ti ti-x"></i> Cancel</button></div></div>`;
 }
 function saveRes(id){
   const name=document.getElementById('rn-name').value.trim(),role=document.getElementById('rn-role').value.trim(),team=document.getElementById('rn-team').value,onboarded=document.getElementById('rn-ob').value;
   if(!name||!onboarded){toast('Name and onboarded date are required',false);return}
-  if(id){const r=DB.resources.find(x=>x.id===id);if(r)Object.assign(r,{name,role,team,onboarded});toast('Resource updated');}
-  else{DB.resources.push({id:uid(),name,role,team,onboarded,status:'Active'});toast('Resource added');}
+  if(id){const r=DB.resources.find(x=>String(x.id)===String(id));if(r)Object.assign(r,{name,role,team,onboarded});toast('Resource updated');}
+  else{DB.resources.push({id:nextId(DB.resources),name,role,team,onboarded,status:'Active'});toast('Resource added');}
   saveAndRender();
 }
-function toggleRes(id){const r=DB.resources.find(x=>x.id===id);if(r){r.status=r.status==='Active'?'Inactive':'Active';saveAndRender()}}
+function toggleRes(id){const r=DB.resources.find(x=>String(x.id)===String(id));if(r){r.status=r.status==='Active'?'Inactive':'Active';saveAndRender()}}
 function delRes(id,name){
   const reasons=[];
-  if(DB.leaves.some(l=>l.empId===id||l.backup===id))reasons.push('has leave records');
-  if(DB.approvers.some(a=>a.resourceId===id))reasons.push('is an approver');
-  if(DB.teams.some(t=>t.lead===id))reasons.push('is a team lead');
+  if(DB.leaves.some(l=>String(l.empId)===String(id)||String(l.backup)===String(id)))reasons.push('has leave records');
+  if(DB.approvers.some(a=>String(a.resourceId)===String(id)))reasons.push('is an approver');
+  if(DB.teams.some(t=>String(t.lead)===String(id)))reasons.push('is a team lead');
   if(reasons.length){toast(`Cannot delete — ${name} ${reasons.join(', ')}`,false);return}
   modal('del','trash','Delete resource',`Delete <strong>${name}</strong>? Cannot be undone.`,
     `<button class="btn" onclick="closeModal()">Cancel</button><button class="btn danger" onclick="confirmDelRes('${id}')"><i class="ti ti-trash"></i> Delete</button>`);
 }
-function confirmDelRes(id){closeModal();DB.resources=DB.resources.filter(r=>r.id!==id);saveAndRender().then(()=>toast('Resource deleted'))}
+function confirmDelRes(id){closeModal();DB.resources=DB.resources.filter(r=>String(r.id)!==String(id));saveAndRender().then(()=>toast('Resource deleted'))}
 function renderTeamTab(){
-  const teams=DB.teams;
+  const teams=DB.teams||[];
   return`<div class="card-hdr" style="margin-bottom:10px"><div class="card-ttl" style="font-size:13px"><i class="ti ti-building" style="color:var(--navy)"></i>Teams <span class="pill" style="background:var(--sky-bg);color:var(--sky)">${teams.length}</span></div><button class="btn teal sm" onclick="openTeamForm()"><i class="ti ti-plus"></i> Add</button></div>
   <div id="team-form"></div>
   <div class="tw">${teams.length===0?`<div class="empty"><i class="ti ti-building"></i>No teams yet.</div>`:
   `<table><tr><th>Team name</th><th>Description</th><th>Lead</th><th>Members</th><th>Actions</th></tr>
-  ${teams.map(t=>{const mem=DB.resources.filter(r=>r.team===t.id&&r.status==='Active').length;return`<tr>
+  ${teams.map(t=>{const mem=DB.resources.filter(r=>(r.team===t.name||String(r.team)===String(t.id))&&r.status==='Active').length;return`<tr>
     <td style="font-weight:500;color:var(--navy)">${t.name}</td><td style="color:var(--text-mid)">${t.desc||'—'}</td>
     <td>${t.lead?rn(t.lead):'<span style="color:var(--text-light);font-style:italic">Not set</span>'}</td>
     <td><span class="pill" style="background:var(--sky-bg);color:var(--sky)">${mem}</span></td>
@@ -647,12 +811,23 @@ function openTeamForm(id){
 function saveTeam(id){
   const name=document.getElementById('tn-name').value.trim(),desc=document.getElementById('tn-desc').value.trim(),lead=document.getElementById('tn-lead').value;
   if(!name){toast('Team name is required',false);return}
-  if(id){const t=DB.teams.find(x=>x.id===id);if(t)Object.assign(t,{name,desc,lead});toast('Team updated');}
-  else{DB.teams.push({id:uid(),name,desc,lead});toast('Team added');}
+  if(id){
+    const t=DB.teams.find(x=>String(x.id)===String(id));
+    if(t){
+      const oldName=t.name;
+      Object.assign(t,{name,desc,lead});
+      // Update all resources that referenced the old team name
+      if(oldName!==name) DB.resources.forEach(r=>{ if(r.team===oldName) r.team=name; });
+    }
+    toast('Team updated');
+  } else {
+    DB.teams.push({id:nextId(DB.teams),name,desc,lead});
+    toast('Team added');
+  }
   saveAndRender();
 }
 function delTeam(id,name){
-  if(DB.resources.some(r=>r.team===id)){toast(`Cannot delete — ${name} has members`,false);return}
+  const t=DB.teams.find(x=>String(x.id)===String(id));const tname=t?t.name:id;if(DB.resources.some(r=>r.team===tname||String(r.team)===String(id))){toast(`Cannot delete — ${name} has members`,false);return}
   modal('del','trash','Delete team',`Delete team <strong>${name}</strong>? Cannot be undone.`,
     `<button class="btn" onclick="closeModal()">Cancel</button><button class="btn danger" onclick="confirmDelTeam('${id}')"><i class="ti ti-trash"></i> Delete</button>`);
 }
@@ -662,34 +837,33 @@ function renderAppTab(){
   return`<div class="card-hdr" style="margin-bottom:10px"><div class="card-ttl" style="font-size:13px"><i class="ti ti-user-check" style="color:var(--navy)"></i>Approvers <span class="pill" style="background:var(--sky-bg);color:var(--sky)">${approvers.length}</span></div><button class="btn teal sm" onclick="openAppForm()"><i class="ti ti-plus"></i> Add</button></div>
   <div id="app-form"></div>
   <div class="tw">${approvers.length===0?`<div class="empty"><i class="ti ti-user-check"></i>No approvers yet.</div>`:
-  `<table><tr><th>Name</th><th>Designation</th><th>Team</th><th>Actions</th></tr>
-  ${approvers.map(a=>{const r=DB.resources.find(x=>x.id===a.resourceId)||{};return`<tr>
-    <td style="font-weight:500;color:var(--navy)">${r.name||'—'}</td>
+  `<table><tr><th>Name</th><th>Designation</th><th>Actions</th></tr>
+  ${approvers.map(a=>{const r=DB.resources.find(x=>String(x.id)===String(a.resourceId))||{};return`<tr>
+    <td style="font-weight:500;color:var(--navy)">${r.name||a.approverName||'—'}</td>
     <td><span class="pill" style="background:var(--violet-bg);color:var(--violet)">${a.designation}</span></td>
-    <td>${tn(r.team)}</td>
     <td><div class="bg"><button class="btn sm edit-btn" onclick="openAppForm('${a.id}')"><i class="ti ti-edit"></i> Edit</button><button class="btn sm danger" onclick="delApp('${a.id}','${(r.name||'approver').replace(/'/g,"\\'")}')"><i class="ti ti-trash"></i></button></div></td>
   </tr>`}).join('')}</table>`}</div>`;
 }
 function openAppForm(id){
-  const res=DB.resources.filter(r=>r.status==='Active');const existing=DB.approvers.map(a=>a.resourceId);const a=id?DB.approvers.find(x=>x.id===id):null;
+  const res=DB.resources.filter(r=>r.status==='Active');const existing=DB.approvers.map(a=>String(a.resourceId));const a=id?DB.approvers.find(x=>String(x.id)===String(id)):null;
   document.getElementById('app-form').innerHTML=`<div class="card hc" style="margin-bottom:12px"><div class="card-ttl" style="margin-bottom:10px"><i class="ti ${a?'ti-edit':'ti-user-plus'}" style="color:var(--teal)"></i>${a?'Edit approver':'Add approver'}</div>
-  <div class="form-row"><div class="fg"><label>Resource *</label><select id="ap-res" ${a?'disabled':''}><option value="">Select resource</option>${(a?res.filter(r=>r.id===a.resourceId):res.filter(r=>!existing.includes(r.id))).map(r=>`<option value="${r.id}" ${a&&a.resourceId===r.id?'selected':''}>${r.name}</option>`).join('')}</select></div>
+  <div class="form-row"><div class="fg"><label>Resource *</label><select id="ap-res" ${a?'disabled':''}><option value="">Select resource</option>${(a?res.filter(r=>String(r.id)===String(a.resourceId)):res.filter(r=>!existing.includes(String(r.id)))).map(r=>`<option value="${r.id}" ${a&&String(a.resourceId)===String(r.id)?'selected':''}>${r.name}</option>`).join('')}</select></div>
   <div class="fg"><label>Designation *</label><input type="text" id="ap-des" value="${a?a.designation.replace(/"/g,'&quot;'):''}" placeholder="e.g. Test Manager"></div></div>
   <div style="display:flex;gap:8px"><button class="btn teal" onclick="saveApp('${id||''}')"><i class="ti ti-check"></i> ${a?'Update':'Save'}</button><button class="btn" onclick="document.getElementById('app-form').innerHTML=''"><i class="ti ti-x"></i> Cancel</button></div></div>`;
 }
 function saveApp(id){
-  const des=document.getElementById('ap-des').value.trim();const resEl=document.getElementById('ap-res');const rid=id?DB.approvers.find(x=>x.id===id)?.resourceId:resEl.value;
+  const des=document.getElementById('ap-des').value.trim();const resEl=document.getElementById('ap-res');const rid=id?DB.approvers.find(x=>String(x.id)===String(id))?.resourceId:resEl.value;
   if(!des||(!rid&&!id)){toast('Fill all fields',false);return}
-  if(id){const a=DB.approvers.find(x=>x.id===id);if(a)a.designation=des;toast('Approver updated');}
-  else{DB.approvers.push({id:uid(),resourceId:rid,designation:des});toast('Approver added');}
+  if(id){const a=DB.approvers.find(x=>String(x.id)===String(id));if(a)a.designation=des;toast('Approver updated');}
+  else{DB.approvers.push({id:nextId(DB.approvers),resourceId:rid,designation:des});toast('Approver added');}
   saveAndRender();
 }
 function delApp(id,name){
-  if(DB.leaves.some(l=>l.approver===id)){toast(`Cannot delete — ${name} has leave requests`,false);return}
+  if(DB.leaves.some(l=>String(l.approver)===String(id))){toast(`Cannot delete — ${name} has leave requests`,false);return}
   modal('del','trash','Remove approver',`Remove <strong>${name}</strong> as approver?`,
     `<button class="btn" onclick="closeModal()">Cancel</button><button class="btn danger" onclick="confirmDelApp('${id}')"><i class="ti ti-trash"></i> Remove</button>`);
 }
-function confirmDelApp(id){closeModal();DB.approvers=DB.approvers.filter(a=>a.id!==id);saveAndRender().then(()=>toast('Approver removed'))}
+function confirmDelApp(id){closeModal();DB.approvers=DB.approvers.filter(a=>String(a.id)!==String(id));saveAndRender().then(()=>toast('Approver removed'))}
 
 /* ── Reports ── */
 function renderReports(){
@@ -732,9 +906,9 @@ function renderEmpRpt(leaves){
 }
 function renderTeamRpt(leaves){
   const teams=DB.teams;if(!teams.length)return`<div class="empty"><i class="ti ti-building"></i>No teams.</div>`;
-  const maxD=Math.max(...teams.map(t=>{const m=DB.resources.filter(r=>r.team===t.id).map(r=>r.id);return leaves.filter(l=>m.includes(l.empId)).reduce((s,l)=>s+l.days,0);}),1);
+  const maxD=Math.max(...teams.map(t=>{const m=DB.resources.filter(r=>r.team===t.name).map(r=>r.id);return leaves.filter(l=>m.includes(l.empId)).reduce((s,l)=>s+l.days,0);}),1);
   return`<div class="tw"><table><tr><th>Team</th><th>Members</th><th>Days</th><th style="min-width:80px">Distribution</th><th>Approved</th><th>Pending</th><th>Rejected</th></tr>
-  ${teams.map(t=>{const m=DB.resources.filter(r=>r.team===t.id).map(r=>r.id);const tl=leaves.filter(l=>m.includes(l.empId));const days=tl.reduce((s,l)=>s+l.days,0);return`<tr><td style="font-weight:500;color:var(--navy)">${t.name}</td><td style="text-align:center"><span class="pill" style="background:var(--sky-bg);color:var(--sky)">${m.length}</span></td><td style="text-align:center;font-weight:500">${days}</td><td><div style="background:#F1F5F9;border-radius:4px;height:8px;overflow:hidden"><div style="background:linear-gradient(90deg,var(--teal),var(--sky));height:100%;width:${Math.round(days/maxD*100)}%;border-radius:4px"></div></div></td><td style="text-align:center;color:var(--green);font-weight:500">${tl.filter(l=>l.status==='Approved').length}</td><td style="text-align:center;color:var(--amber);font-weight:500">${tl.filter(l=>l.status==='Pending').length}</td><td style="text-align:center;color:var(--rose);font-weight:500">${tl.filter(l=>l.status==='Rejected').length}</td></tr>`}).join('')}</table></div>`;
+  ${teams.map(t=>{const m=DB.resources.filter(r=>r.team===t.name).map(r=>r.id);const tl=leaves.filter(l=>m.includes(l.empId));const days=tl.reduce((s,l)=>s+l.days,0);return`<tr><td style="font-weight:500;color:var(--navy)">${t.name}</td><td style="text-align:center"><span class="pill" style="background:var(--sky-bg);color:var(--sky)">${m.length}</span></td><td style="text-align:center;font-weight:500">${days}</td><td><div style="background:#F1F5F9;border-radius:4px;height:8px;overflow:hidden"><div style="background:linear-gradient(90deg,var(--teal),var(--sky));height:100%;width:${Math.round(days/maxD*100)}%;border-radius:4px"></div></div></td><td style="text-align:center;color:var(--green);font-weight:500">${tl.filter(l=>l.status==='Approved').length}</td><td style="text-align:center;color:var(--amber);font-weight:500">${tl.filter(l=>l.status==='Pending').length}</td><td style="text-align:center;color:var(--rose);font-weight:500">${tl.filter(l=>l.status==='Rejected').length}</td></tr>`}).join('')}</table></div>`;
 }
 function renderAppRpt(leaves){
   const approvers=DB.approvers;if(!approvers.length)return`<div class="empty"><i class="ti ti-user-check"></i>No approvers.</div>`;
